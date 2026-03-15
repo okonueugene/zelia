@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -13,23 +13,35 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
-} from 'react-native';
-import { useRouter } from 'expo-router';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Ionicons } from '@expo/vector-icons';
-import Toast from 'react-native-toast-message';
-import * as Location from 'expo-location';
-import { getCustomers } from '../../../src/api/customers';
-import { getProducts, getProductPriceByCategory } from '../../../src/api/products';
-import { createOrder } from '../../../src/api/orders';
-import { Colors, FontSize, Spacing, BorderRadius, Shadow } from '../../../src/constants/colors';
+} from "react-native";
+import { useRouter } from "expo-router";
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Ionicons } from "@expo/vector-icons";
+import Toast from "react-native-toast-message";
+import * as Location from "expo-location";
+import { getCustomers } from "../../../src/api/customers";
+import {
+  getProducts,
+  getProductPriceByCategory,
+} from "../../../src/api/products";
+import { createOrder } from "../../../src/api/orders";
+import {
+  Colors,
+  FontSize,
+  Spacing,
+  BorderRadius,
+  Shadow,
+} from "../../../src/constants/colors";
 import type {
   Customer,
   CustomerCategory,
   ProductListItem,
   StoreLocation,
-} from '../../../src/types';
+} from "../../../src/types";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -47,25 +59,28 @@ interface OrderLine {
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const CATEGORIES: { label: string; value: CustomerCategory }[] = [
-  { label: 'Factory', value: 'factory' },
-  { label: 'Distributor', value: 'distributor' },
-  { label: 'Wholesale', value: 'wholesale' },
-  { label: 'Towns', value: 'Towns' },
-  { label: 'Retail', value: 'Retail customer' },
+  { label: "Factory", value: "factory" },
+  { label: "Distributor", value: "distributor" },
+  { label: "Wholesale", value: "wholesale" },
+  { label: "Towns", value: "Towns" },
+  { label: "Retail", value: "Retail customer" },
 ];
 
 const STORES: { label: string; value: StoreLocation; icon: string }[] = [
-  { label: 'McDave', value: 'mcdave', icon: 'business-outline' },
-  { label: 'Kisii', value: 'kisii', icon: 'storefront-outline' },
-  { label: 'Offshore', value: 'offshore', icon: 'boat-outline' },
+  { label: "McDave", value: "mcdave", icon: "business-outline" },
+  { label: "Kisii", value: "kisii", icon: "storefront-outline" },
+  { label: "Offshore", value: "offshore", icon: "boat-outline" },
 ];
 
 const fmt = (n: number) =>
-  n.toLocaleString('en-KE', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+  n.toLocaleString("en-KE", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 2,
+  });
 
 const stockKey = (p: ProductListItem, store: StoreLocation): number => {
-  if (store === 'mcdave') return p.mcdave_stock ?? 0;
-  if (store === 'kisii') return p.kisii_stock ?? 0;
+  if (store === "mcdave") return p.mcdave_stock ?? 0;
+  if (store === "kisii") return p.kisii_stock ?? 0;
   return p.offshore_stock ?? 0;
 };
 
@@ -75,9 +90,9 @@ const priceFromList = (p: ProductListItem, cat: CustomerCategory): number => {
     distributor: p.distributor_price,
     wholesale: p.wholesale_price,
     Towns: p.offshore_price,
-    'Retail customer': p.retail_price,
+    Retail_customer: p.retail_price,
   };
-  return parseFloat(map[cat] ?? '0') || 0;
+  return parseFloat(map[cat] ?? "0") || 0;
 };
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -97,7 +112,11 @@ function PillRow<T extends string>({
   return (
     <View style={pill.wrap}>
       <Text style={pill.label}>{label}</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={pill.row}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={pill.row}
+      >
         {options.map((o) => {
           const active = value === o.value;
           return (
@@ -106,7 +125,9 @@ function PillRow<T extends string>({
               onPress={() => onChange(o.value)}
               style={[pill.chip, active && pill.chipActive]}
             >
-              <Text style={[pill.text, active && pill.textActive]}>{o.label}</Text>
+              <Text style={[pill.text, active && pill.textActive]}>
+                {o.label}
+              </Text>
             </TouchableOpacity>
           );
         })}
@@ -119,9 +140,9 @@ const pill = StyleSheet.create({
   wrap: { marginBottom: Spacing.md },
   label: {
     fontSize: FontSize.xs,
-    fontWeight: '600',
+    fontWeight: "600",
     color: Colors.textSecondary,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.5,
     marginBottom: Spacing.xs,
   },
@@ -134,9 +155,16 @@ const pill = StyleSheet.create({
     borderColor: Colors.gray300,
     backgroundColor: Colors.white,
   },
-  chipActive: { borderColor: Colors.primary, backgroundColor: Colors.primarySurface },
-  text: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: '500' },
-  textActive: { color: Colors.primary, fontWeight: '700' },
+  chipActive: {
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primarySurface,
+  },
+  text: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    fontWeight: "500",
+  },
+  textActive: { color: Colors.primary, fontWeight: "700" },
 });
 
 /** Section card */
@@ -170,16 +198,25 @@ const sec = StyleSheet.create({
     marginBottom: Spacing.md,
     ...Shadow.md,
   },
-  header: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginBottom: Spacing.md },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginBottom: Spacing.md,
+  },
   iconBg: {
     width: 30,
     height: 30,
     borderRadius: 8,
     backgroundColor: Colors.primarySurface,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
-  title: { fontSize: FontSize.md, fontWeight: '700', color: Colors.textPrimary },
+  title: {
+    fontSize: FontSize.md,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
 });
 
 // ─── Customer Picker Modal ────────────────────────────────────────────────────
@@ -190,12 +227,16 @@ interface CustomerPickerModalProps {
   onSelect: (c: Customer) => void;
 }
 
-function CustomerPickerModal({ visible, onClose, onSelect }: CustomerPickerModalProps) {
+function CustomerPickerModal({
+  visible,
+  onClose,
+  onSelect,
+}: CustomerPickerModalProps) {
   const insets = useSafeAreaInsets();
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
 
   const { data, isFetching } = useQuery({
-    queryKey: ['customer-search', query],
+    queryKey: ["customer-search", query],
     queryFn: () => getCustomers({ search: query }),
     enabled: query.length >= 1,
     staleTime: 10_000,
@@ -204,7 +245,12 @@ function CustomerPickerModal({ visible, onClose, onSelect }: CustomerPickerModal
   const customers = data?.results ?? [];
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+    >
       <View style={[cpk.container, { paddingTop: insets.top || Spacing.lg }]}>
         {/* Header */}
         <View style={cpk.header}>
@@ -226,9 +272,11 @@ function CustomerPickerModal({ visible, onClose, onSelect }: CustomerPickerModal
             autoFocus
             returnKeyType="search"
           />
-          {isFetching && <ActivityIndicator size="small" color={Colors.primary} />}
+          {isFetching && (
+            <ActivityIndicator size="small" color={Colors.primary} />
+          )}
           {query.length > 0 && !isFetching && (
-            <TouchableOpacity onPress={() => setQuery('')}>
+            <TouchableOpacity onPress={() => setQuery("")}>
               <Ionicons name="close-circle" size={18} color={Colors.gray400} />
             </TouchableOpacity>
           )}
@@ -256,24 +304,31 @@ function CustomerPickerModal({ visible, onClose, onSelect }: CustomerPickerModal
                 style={cpk.item}
                 onPress={() => {
                   onSelect(c);
-                  setQuery('');
+                  setQuery("");
                   onClose();
                 }}
                 activeOpacity={0.7}
               >
                 <View style={cpk.itemAvatar}>
                   <Text style={cpk.avatarText}>
-                    {c.first_name.charAt(0)}{c.last_name.charAt(0)}
+                    {c.first_name.charAt(0)}
+                    {c.last_name.charAt(0)}
                   </Text>
                 </View>
                 <View style={cpk.itemInfo}>
-                  <Text style={cpk.itemName}>{c.first_name} {c.last_name}</Text>
+                  <Text style={cpk.itemName}>
+                    {c.first_name} {c.last_name}
+                  </Text>
                   <Text style={cpk.itemSub}>{c.phone_number}</Text>
                   <View style={cpk.categoryBadge}>
                     <Text style={cpk.categoryText}>{c.default_category}</Text>
                   </View>
                 </View>
-                <Ionicons name="chevron-forward" size={18} color={Colors.gray400} />
+                <Ionicons
+                  name="chevron-forward"
+                  size={18}
+                  color={Colors.gray400}
+                />
               </TouchableOpacity>
             )}
             ItemSeparatorComponent={() => <View style={cpk.separator} />}
@@ -287,27 +342,31 @@ function CustomerPickerModal({ visible, onClose, onSelect }: CustomerPickerModal
 const cpk = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.divider,
     backgroundColor: Colors.white,
   },
-  title: { fontSize: FontSize.lg, fontWeight: '700', color: Colors.textPrimary },
+  title: {
+    fontSize: FontSize.lg,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
   closeBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
     backgroundColor: Colors.gray100,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   searchWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: Colors.white,
     margin: Spacing.md,
     paddingHorizontal: Spacing.md,
@@ -319,11 +378,16 @@ const cpk = StyleSheet.create({
     ...Shadow.sm,
   },
   searchInput: { flex: 1, fontSize: FontSize.md, color: Colors.textPrimary },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.sm },
+  empty: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+  },
   emptyText: { fontSize: FontSize.md, color: Colors.textSecondary },
   item: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: Spacing.md,
     paddingHorizontal: Spacing.lg,
     backgroundColor: Colors.white,
@@ -334,22 +398,34 @@ const cpk = StyleSheet.create({
     height: 44,
     borderRadius: 22,
     backgroundColor: Colors.primarySurface,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
-  avatarText: { fontSize: FontSize.md, fontWeight: '700', color: Colors.primary },
+  avatarText: {
+    fontSize: FontSize.md,
+    fontWeight: "700",
+    color: Colors.primary,
+  },
   itemInfo: { flex: 1 },
-  itemName: { fontSize: FontSize.md, fontWeight: '600', color: Colors.textPrimary },
+  itemName: {
+    fontSize: FontSize.md,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+  },
   itemSub: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
   categoryBadge: {
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     backgroundColor: Colors.accentSurface,
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,
     borderRadius: BorderRadius.full,
     marginTop: 4,
   },
-  categoryText: { fontSize: FontSize.xs, color: Colors.accent, fontWeight: '600' },
+  categoryText: {
+    fontSize: FontSize.xs,
+    color: Colors.accent,
+    fontWeight: "600",
+  },
   separator: { height: 1, backgroundColor: Colors.gray100, marginLeft: 76 },
 });
 
@@ -373,10 +449,10 @@ function ProductPickerModal({
   addedIds,
 }: ProductPickerModalProps) {
   const insets = useSafeAreaInsets();
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
 
   const { data, isFetching } = useQuery({
-    queryKey: ['product-search', query],
+    queryKey: ["product-search", query],
     queryFn: () => getProducts({ search: query }),
     enabled: query.length >= 1,
     staleTime: 10_000,
@@ -391,7 +467,12 @@ function ProductPickerModal({
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+      onRequestClose={onClose}
+    >
       <View style={[ppk.container, { paddingTop: insets.top || Spacing.lg }]}>
         {/* Header */}
         <View style={ppk.header}>
@@ -402,7 +483,7 @@ function ProductPickerModal({
         </View>
 
         <Text style={ppk.subtitle}>
-          Store: <Text style={ppk.subtitleBold}>{store}</Text> · Category:{' '}
+          Store: <Text style={ppk.subtitleBold}>{store}</Text> · Category:{" "}
           <Text style={ppk.subtitleBold}>{category}</Text>
         </Text>
 
@@ -418,9 +499,11 @@ function ProductPickerModal({
             autoFocus
             returnKeyType="search"
           />
-          {isFetching && <ActivityIndicator size="small" color={Colors.primary} />}
+          {isFetching && (
+            <ActivityIndicator size="small" color={Colors.primary} />
+          )}
           {query.length > 0 && !isFetching && (
-            <TouchableOpacity onPress={() => setQuery('')}>
+            <TouchableOpacity onPress={() => setQuery("")}>
               <Ionicons name="close-circle" size={18} color={Colors.gray400} />
             </TouchableOpacity>
           )}
@@ -453,7 +536,7 @@ function ProductPickerModal({
                   onPress={() => {
                     if (!alreadyAdded) {
                       onSelect(p);
-                      setQuery('');
+                      setQuery("");
                       onClose();
                     }
                   }}
@@ -461,24 +544,42 @@ function ProductPickerModal({
                 >
                   <View style={ppk.itemMain}>
                     <View style={ppk.nameRow}>
-                      <Text style={ppk.itemName} numberOfLines={2}>{p.name}</Text>
+                      <Text style={ppk.itemName} numberOfLines={2}>
+                        {p.name}
+                      </Text>
                       {alreadyAdded && (
                         <View style={ppk.addedBadge}>
-                          <Ionicons name="checkmark" size={12} color={Colors.success} />
+                          <Ionicons
+                            name="checkmark"
+                            size={12}
+                            color={Colors.success}
+                          />
                           <Text style={ppk.addedText}>Added</Text>
                         </View>
                       )}
                     </View>
                     <Text style={ppk.itemBarcode}>{p.barcode}</Text>
                     <View style={ppk.itemMeta}>
-                      <View style={[ppk.stockBadge, { backgroundColor: stock <= 0 ? Colors.errorSurface : stock <= 5 ? Colors.warningSurface : Colors.successSurface }]}>
-                        <Text style={[ppk.stockText, { color: stockColor(stock) }]}>
+                      <View
+                        style={[
+                          ppk.stockBadge,
+                          {
+                            backgroundColor:
+                              stock <= 0
+                                ? Colors.errorSurface
+                                : stock <= 5
+                                  ? Colors.warningSurface
+                                  : Colors.successSurface,
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[ppk.stockText, { color: stockColor(stock) }]}
+                        >
                           Stock: {stock}
                         </Text>
                       </View>
-                      <Text style={ppk.priceText}>
-                        KSh {fmt(price)}
-                      </Text>
+                      <Text style={ppk.priceText}>KSh {fmt(price)}</Text>
                     </View>
                   </View>
                   {!alreadyAdded && (
@@ -500,23 +601,27 @@ function ProductPickerModal({
 const ppk = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.background },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: Spacing.lg,
     paddingBottom: Spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: Colors.divider,
     backgroundColor: Colors.white,
   },
-  title: { fontSize: FontSize.lg, fontWeight: '700', color: Colors.textPrimary },
+  title: {
+    fontSize: FontSize.lg,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
   closeBtn: {
     width: 36,
     height: 36,
     borderRadius: 18,
     backgroundColor: Colors.gray100,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   subtitle: {
     fontSize: FontSize.sm,
@@ -526,10 +631,10 @@ const ppk = StyleSheet.create({
     paddingBottom: Spacing.xs,
     backgroundColor: Colors.white,
   },
-  subtitleBold: { fontWeight: '700', color: Colors.primary },
+  subtitleBold: { fontWeight: "700", color: Colors.primary },
   searchWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: Colors.white,
     margin: Spacing.md,
     paddingHorizontal: Spacing.md,
@@ -541,11 +646,16 @@ const ppk = StyleSheet.create({
     ...Shadow.sm,
   },
   searchInput: { flex: 1, fontSize: FontSize.md, color: Colors.textPrimary },
-  empty: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.sm },
+  empty: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: Spacing.sm,
+  },
   emptyText: { fontSize: FontSize.md, color: Colors.textSecondary },
   item: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: Spacing.md,
     paddingHorizontal: Spacing.lg,
     backgroundColor: Colors.white,
@@ -553,34 +663,52 @@ const ppk = StyleSheet.create({
   },
   itemAdded: { opacity: 0.5 },
   itemMain: { flex: 1 },
-  nameRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
-  itemName: { flex: 1, fontSize: FontSize.md, fontWeight: '600', color: Colors.textPrimary },
+  nameRow: { flexDirection: "row", alignItems: "flex-start", gap: Spacing.sm },
+  itemName: {
+    flex: 1,
+    fontSize: FontSize.md,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+  },
   addedBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 2,
     backgroundColor: Colors.successSurface,
     paddingHorizontal: Spacing.xs,
     paddingVertical: 2,
     borderRadius: BorderRadius.sm,
   },
-  addedText: { fontSize: FontSize.xs, color: Colors.success, fontWeight: '600' },
+  addedText: {
+    fontSize: FontSize.xs,
+    color: Colors.success,
+    fontWeight: "600",
+  },
   itemBarcode: { fontSize: FontSize.xs, color: Colors.gray500, marginTop: 2 },
-  itemMeta: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: 6 },
+  itemMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: Spacing.sm,
+    marginTop: 6,
+  },
   stockBadge: {
     paddingHorizontal: Spacing.sm,
     paddingVertical: 2,
     borderRadius: BorderRadius.full,
   },
-  stockText: { fontSize: FontSize.xs, fontWeight: '600' },
-  priceText: { fontSize: FontSize.sm, fontWeight: '700', color: Colors.primary },
+  stockText: { fontSize: FontSize.xs, fontWeight: "600" },
+  priceText: {
+    fontSize: FontSize.sm,
+    fontWeight: "700",
+    color: Colors.primary,
+  },
   addBtn: {
     width: 34,
     height: 34,
     borderRadius: 17,
     backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   separator: { height: 1, backgroundColor: Colors.gray100 },
 });
@@ -592,17 +720,22 @@ export default function CreateOrderScreen() {
   const queryClient = useQueryClient();
 
   // Form state
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-  const [store, setStore] = useState<StoreLocation>('mcdave');
-  const [category, setCategory] = useState<CustomerCategory>('wholesale');
-  const [address, setAddress] = useState('');
-  const [phone, setPhone] = useState('');
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
+    null,
+  );
+  const [store, setStore] = useState<StoreLocation>("mcdave");
+  const [category, setCategory] = useState<CustomerCategory>("wholesale");
+  const [address, setAddress] = useState("");
+  const [phone, setPhone] = useState("");
   const [withVat, setWithVat] = useState(false);
-  const [deliveryFee, setDeliveryFee] = useState('');
-  const [amountPaid, setAmountPaid] = useState('');
+  const [deliveryFee, setDeliveryFee] = useState("");
+  const [amountPaid, setAmountPaid] = useState("");
   const [lines, setLines] = useState<OrderLine[]>([]);
-  const [locationAddress, setLocationAddress] = useState('');
-  const [gpsCoords, setGpsCoords] = useState<{ lat: number; lng: number } | null>(null);
+  const [locationAddress, setLocationAddress] = useState("");
+  const [gpsCoords, setGpsCoords] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
   const [gpsLoading, setGpsLoading] = useState(false);
 
   // Modal state
@@ -617,8 +750,8 @@ export default function CreateOrderScreen() {
     setGpsLoading(true);
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Toast.show({ type: 'error', text1: 'Location permission denied' });
+      if (status !== "granted") {
+        Toast.show({ type: "error", text1: "Location permission denied" });
         setGpsLoading(false);
         return;
       }
@@ -629,18 +762,25 @@ export default function CreateOrderScreen() {
       setGpsCoords({ lat, lng });
 
       // Reverse geocode to human-readable address
-      const results = await Location.reverseGeocodeAsync({ latitude: lat, longitude: lng });
+      const results = await Location.reverseGeocodeAsync({
+        latitude: lat,
+        longitude: lng,
+      });
       if (results.length > 0) {
         const r = results[0];
         const parts = [r.name, r.street, r.district, r.city, r.region]
           .filter(Boolean)
-          .join(', ');
+          .join(", ");
         setLocationAddress(parts);
         if (!address) setAddress(parts);
       }
-      Toast.show({ type: 'success', text1: 'Location captured', text2: 'GPS coordinates saved' });
+      Toast.show({
+        type: "success",
+        text1: "Location captured",
+        text2: "GPS coordinates saved",
+      });
     } catch {
-      Toast.show({ type: 'error', text1: 'Failed to get location' });
+      Toast.show({ type: "error", text1: "Failed to get location" });
     } finally {
       setGpsLoading(false);
     }
@@ -648,22 +788,19 @@ export default function CreateOrderScreen() {
 
   // ─── Customer selection ──────────────────────────────────────────────────────
 
-  const handleSelectCustomer = useCallback(
-    (c: Customer) => {
-      setSelectedCustomer(c);
-      setPhone(c.phone_number);
-      setAddress(c.address || '');
-      // Set category from customer's default
-      const found = CATEGORIES.find((cat) => cat.value === c.default_category);
-      if (found) setCategory(found.value);
-    },
-    [],
-  );
+  const handleSelectCustomer = useCallback((c: Customer) => {
+    setSelectedCustomer(c);
+    setPhone(c.phone_number);
+    setAddress(c.address || "");
+    // Set category from customer's default
+    const found = CATEGORIES.find((cat) => cat.value === c.default_category);
+    if (found) setCategory(found.value);
+  }, []);
 
   const clearCustomer = () => {
     setSelectedCustomer(null);
-    setPhone('');
-    setAddress('');
+    setPhone("");
+    setAddress("");
   };
 
   // ─── Category change guard ───────────────────────────────────────────────────
@@ -671,13 +808,13 @@ export default function CreateOrderScreen() {
   const handleCategoryChange = (newCat: CustomerCategory) => {
     if (lines.length > 0 && newCat !== category) {
       Alert.alert(
-        'Change Category?',
-        'Changing the customer category will clear prices for all added items. Prices will be recalculated.',
+        "Change Category?",
+        "Changing the customer category will clear prices for all added items. Prices will be recalculated.",
         [
-          { text: 'Cancel', style: 'cancel' },
+          { text: "Cancel", style: "cancel" },
           {
-            text: 'Change',
-            style: 'destructive',
+            text: "Change",
+            style: "destructive",
             onPress: () => {
               setCategory(newCat);
               // Recalculate prices for existing lines
@@ -713,8 +850,8 @@ export default function CreateOrderScreen() {
       const stock = stockKey(p, store);
       if (stock <= 0) {
         Toast.show({
-          type: 'error',
-          text1: 'Out of Stock',
+          type: "error",
+          text1: "Out of Stock",
           text2: `${p.name} has no stock at ${store} store`,
         });
         return;
@@ -786,7 +923,10 @@ export default function CreateOrderScreen() {
 
   // ─── Totals ──────────────────────────────────────────────────────────────────
 
-  const subtotal = lines.reduce((s, l) => s + l.quantity * (l.unit_price + l.variance), 0);
+  const subtotal = lines.reduce(
+    (s, l) => s + l.quantity * (l.unit_price + l.variance),
+    0,
+  );
   const vat = withVat ? subtotal * 0.16 : 0;
   const fee = parseFloat(deliveryFee) || 0;
   const grandTotal = subtotal + vat + fee;
@@ -797,30 +937,38 @@ export default function CreateOrderScreen() {
   const { mutate: submitOrder, isPending } = useMutation({
     mutationFn: createOrder,
     onSuccess: (order) => {
-      Toast.show({ type: 'success', text1: `Order #${order.id} created!`, text2: 'Order placed successfully' });
-      queryClient.invalidateQueries({ queryKey: ['orders'] });
-      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      Toast.show({
+        type: "success",
+        text1: `Order #${order.id} created!`,
+        text2: "Order placed successfully",
+      });
+      queryClient.invalidateQueries({ queryKey: ["orders"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
       router.replace(`/(tabs)/orders/${order.id}` as any);
     },
     onError: (e: Error) =>
-      Toast.show({ type: 'error', text1: 'Failed to create order', text2: e.message }),
+      Toast.show({
+        type: "error",
+        text1: "Failed to create order",
+        text2: e.message,
+      }),
   });
 
   const handleSubmit = () => {
     if (!selectedCustomer) {
-      Toast.show({ type: 'error', text1: 'Select a customer' });
+      Toast.show({ type: "error", text1: "Select a customer" });
       return;
     }
     if (!address.trim()) {
-      Toast.show({ type: 'error', text1: 'Enter delivery address' });
+      Toast.show({ type: "error", text1: "Enter delivery address" });
       return;
     }
     if (!phone.trim()) {
-      Toast.show({ type: 'error', text1: 'Enter phone number' });
+      Toast.show({ type: "error", text1: "Enter phone number" });
       return;
     }
     if (lines.length === 0) {
-      Toast.show({ type: 'error', text1: 'Add at least one item' });
+      Toast.show({ type: "error", text1: "Add at least one item" });
       return;
     }
 
@@ -830,7 +978,7 @@ export default function CreateOrderScreen() {
       customer_category: category,
       address: address.trim(),
       phone: phone.trim(),
-      vat_variation: withVat ? 'with_vat' : 'without_vat',
+      vat_variation: withVat ? "with_vat" : "without_vat",
       delivery_fee: fee || undefined,
       latitude: gpsCoords?.lat,
       longitude: gpsCoords?.lng,
@@ -845,10 +993,19 @@ export default function CreateOrderScreen() {
     });
   };
 
+  const updateQtyDirect = (idx: number, val: string) => {
+    const num = parseInt(val, 10);
+    setLines((prev) =>
+      prev.map((l, i) =>
+        i === idx ? { ...l, quantity: isNaN(num) ? 0 : Math.max(0, num) } : l,
+      ),
+    );
+  };
+
   // ─── Render ──────────────────────────────────────────────────────────────────
 
   return (
-    <SafeAreaView style={s.safe} edges={['top']}>
+    <SafeAreaView style={s.safe} edges={["top"]}>
       {/* ── Header ── */}
       <View style={s.header}>
         <TouchableOpacity onPress={() => router.back()} style={s.backBtn}>
@@ -866,7 +1023,7 @@ export default function CreateOrderScreen() {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
       >
         <ScrollView
           contentContainerStyle={s.scroll}
@@ -879,18 +1036,27 @@ export default function CreateOrderScreen() {
               <View style={s.selectedBox}>
                 <View style={s.customerAvatar}>
                   <Text style={s.avatarLetter}>
-                    {selectedCustomer.first_name.charAt(0)}{selectedCustomer.last_name.charAt(0)}
+                    {selectedCustomer.first_name.charAt(0)}
+                    {selectedCustomer.last_name.charAt(0)}
                   </Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={s.customerName}>
                     {selectedCustomer.first_name} {selectedCustomer.last_name}
                   </Text>
-                  <Text style={s.customerSub}>{selectedCustomer.phone_number}</Text>
-                  <Text style={s.customerCat}>{selectedCustomer.default_category}</Text>
+                  <Text style={s.customerSub}>
+                    {selectedCustomer.phone_number}
+                  </Text>
+                  <Text style={s.customerCat}>
+                    {selectedCustomer.default_category}
+                  </Text>
                 </View>
                 <TouchableOpacity onPress={clearCustomer} style={s.clearBtn}>
-                  <Ionicons name="close-circle" size={22} color={Colors.gray400} />
+                  <Ionicons
+                    name="close-circle"
+                    size={22}
+                    color={Colors.gray400}
+                  />
                 </TouchableOpacity>
               </View>
             ) : (
@@ -899,15 +1065,28 @@ export default function CreateOrderScreen() {
                 onPress={() => setShowCustomerPicker(true)}
                 activeOpacity={0.7}
               >
-                <Ionicons name="search-outline" size={18} color={Colors.primary} />
+                <Ionicons
+                  name="search-outline"
+                  size={18}
+                  color={Colors.primary}
+                />
                 <Text style={s.pickerBtnText}>Search & select customer...</Text>
-                <Ionicons name="chevron-forward" size={18} color={Colors.gray400} />
+                <Ionicons
+                  name="chevron-forward"
+                  size={18}
+                  color={Colors.gray400}
+                />
               </TouchableOpacity>
             )}
             {!selectedCustomer && (
               <Text style={s.hint}>
-                <Ionicons name="information-circle-outline" size={13} color={Colors.info} />{' '}
-                Selecting a customer auto-fills phone, address, and pricing category.
+                <Ionicons
+                  name="information-circle-outline"
+                  size={13}
+                  color={Colors.info}
+                />{" "}
+                Selecting a customer auto-fills phone, address, and pricing
+                category.
               </Text>
             )}
           </Section>
@@ -933,7 +1112,11 @@ export default function CreateOrderScreen() {
               <Text style={s.fieldLabel}>Delivery Address *</Text>
               <View style={s.addressRow}>
                 <View style={[s.inputWrap, { flex: 1 }]}>
-                  <Ionicons name="location-outline" size={16} color={Colors.gray400} />
+                  <Ionicons
+                    name="location-outline"
+                    size={16}
+                    color={Colors.gray400}
+                  />
                   <TextInput
                     style={s.input}
                     placeholder="Enter delivery address"
@@ -952,7 +1135,11 @@ export default function CreateOrderScreen() {
                     <ActivityIndicator size="small" color={Colors.white} />
                   ) : (
                     <>
-                      <Ionicons name="navigate" size={16} color={Colors.white} />
+                      <Ionicons
+                        name="navigate"
+                        size={16}
+                        color={Colors.white}
+                      />
                       <Text style={s.gpsBtnText}>GPS</Text>
                     </>
                   )}
@@ -969,7 +1156,11 @@ export default function CreateOrderScreen() {
             <View style={s.field}>
               <Text style={s.fieldLabel}>Phone Number *</Text>
               <View style={s.inputWrap}>
-                <Ionicons name="call-outline" size={16} color={Colors.gray400} />
+                <Ionicons
+                  name="call-outline"
+                  size={16}
+                  color={Colors.gray400}
+                />
                 <TextInput
                   style={s.input}
                   placeholder="0700000000"
@@ -1013,7 +1204,10 @@ export default function CreateOrderScreen() {
           </Section>
 
           {/* ── 3. Items ── */}
-          <Section title={`Order Items${lines.length > 0 ? ` (${lines.length})` : ''}`} icon="cube-outline">
+          <Section
+            title={`Order Items${lines.length > 0 ? ` (${lines.length})` : ""}`}
+            icon="cube-outline"
+          >
             {/* Add product button */}
             <TouchableOpacity
               style={s.addProductBtn}
@@ -1024,19 +1218,30 @@ export default function CreateOrderScreen() {
                 <Ionicons name="add" size={20} color={Colors.white} />
               </View>
               <Text style={s.addProductText}>Add Product</Text>
-              <Ionicons name="chevron-forward" size={18} color={Colors.primary} />
+              <Ionicons
+                name="chevron-forward"
+                size={18}
+                color={Colors.primary}
+              />
             </TouchableOpacity>
 
             {lines.length === 0 && (
               <View style={s.emptyItems}>
-                <Ionicons name="cube-outline" size={36} color={Colors.gray300} />
+                <Ionicons
+                  name="cube-outline"
+                  size={36}
+                  color={Colors.gray300}
+                />
                 <Text style={s.emptyItemsText}>No items added yet</Text>
-                <Text style={s.emptyItemsSub}>Tap "Add Product" to search the catalogue</Text>
+                <Text style={s.emptyItemsSub}>
+                  Tap "Add Product" to search the catalogue
+                </Text>
               </View>
             )}
 
             {lines.map((line, idx) => {
-              const lineTotal = line.quantity * (line.unit_price + line.variance);
+              const lineTotal =
+                line.quantity * (line.unit_price + line.variance);
               const lowStock = line.stock <= 5;
               const outOfStock = line.stock <= 0;
               return (
@@ -1044,50 +1249,84 @@ export default function CreateOrderScreen() {
                   {/* Line header */}
                   <View style={s.lineTop}>
                     <View style={{ flex: 1 }}>
-                      <Text style={s.lineName} numberOfLines={2}>{line.product_name}</Text>
+                      <Text style={s.lineName} numberOfLines={2}>
+                        {line.product_name}
+                      </Text>
                       <Text style={s.lineBarcode}>{line.barcode}</Text>
                     </View>
                     <TouchableOpacity
                       onPress={() => removeLine(idx)}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
-                      <Ionicons name="trash-outline" size={18} color={Colors.error} />
+                      <Ionicons
+                        name="trash-outline"
+                        size={18}
+                        color={Colors.error}
+                      />
                     </TouchableOpacity>
                   </View>
 
                   {/* Stock badge */}
                   {(lowStock || outOfStock) && (
-                    <View style={[s.stockWarning, { backgroundColor: outOfStock ? Colors.errorSurface : Colors.warningSurface }]}>
+                    <View
+                      style={[
+                        s.stockWarning,
+                        {
+                          backgroundColor: outOfStock
+                            ? Colors.errorSurface
+                            : Colors.warningSurface,
+                        },
+                      ]}
+                    >
                       <Ionicons
                         name="warning-outline"
                         size={13}
                         color={outOfStock ? Colors.error : Colors.warning}
                       />
-                      <Text style={[s.stockWarningText, { color: outOfStock ? Colors.error : Colors.warning }]}>
-                        {outOfStock ? 'Out of stock at this store' : `Low stock: only ${line.stock} left`}
+                      <Text
+                        style={[
+                          s.stockWarningText,
+                          { color: outOfStock ? Colors.error : Colors.warning },
+                        ]}
+                      >
+                        {outOfStock
+                          ? "Out of stock at this store"
+                          : `Low stock: only ${line.stock} left`}
                       </Text>
                     </View>
                   )}
 
                   {/* Qty stepper */}
-                  <View style={s.lineControls}>
-                    <View style={s.qtyWrap}>
-                      <Text style={s.lineFieldLabel}>Quantity</Text>
-                      <View style={s.qtyRow}>
-                        <TouchableOpacity
-                          style={[s.qtyBtn, line.quantity <= 1 && s.qtyBtnDisabled]}
-                          onPress={() => updateQty(idx, -1)}
-                          disabled={line.quantity <= 1}
-                        >
-                          <Ionicons name="remove" size={16} color={line.quantity <= 1 ? Colors.gray400 : Colors.primary} />
-                        </TouchableOpacity>
-                        <Text style={s.qtyVal}>{line.quantity}</Text>
-                        <TouchableOpacity style={s.qtyBtn} onPress={() => updateQty(idx, 1)}>
-                          <Ionicons name="add" size={16} color={Colors.primary} />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
+                  <View style={s.qtyRow}>
+                    <TouchableOpacity
+                      onPress={() => updateQty(idx, -1)}
+                      style={s.qtyBtn}
+                    >
+                      <Ionicons
+                        name="remove"
+                        size={16}
+                        color={Colors.primary}
+                      />
+                    </TouchableOpacity>
 
+                    <TextInput
+                      style={s.qtyInput}
+                      keyboardType="numeric"
+                      value={String(line.quantity)}
+                      onChangeText={(v) => updateQtyDirect(idx, v)}
+                      selectTextOnFocus
+                    />
+
+                    <TouchableOpacity
+                      onPress={() => updateQty(idx, 1)}
+                      style={s.qtyBtn}
+                    >
+                      <Ionicons name="add" size={16} color={Colors.primary} />
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Line fields */}
+                  <View style={s.lineFields}>
                     <View style={s.priceFld}>
                       <Text style={s.lineFieldLabel}>Unit Price (KSh)</Text>
                       <TextInput
@@ -1129,7 +1368,11 @@ export default function CreateOrderScreen() {
               <View style={s.field}>
                 <Text style={s.fieldLabel}>Amount Paid (KSh)</Text>
                 <View style={s.inputWrap}>
-                  <Ionicons name="cash-outline" size={16} color={Colors.gray400} />
+                  <Ionicons
+                    name="cash-outline"
+                    size={16}
+                    color={Colors.gray400}
+                  />
                   <TextInput
                     style={s.input}
                     placeholder="0 (leave blank for unpaid)"
@@ -1149,7 +1392,9 @@ export default function CreateOrderScreen() {
               <Text style={s.summaryTitle}>Order Summary</Text>
 
               <View style={s.summaryRow}>
-                <Text style={s.summaryLabel}>Subtotal ({lines.length} item{lines.length !== 1 ? 's' : ''})</Text>
+                <Text style={s.summaryLabel}>
+                  Subtotal ({lines.length} item{lines.length !== 1 ? "s" : ""})
+                </Text>
                 <Text style={s.summaryVal}>KSh {fmt(subtotal)}</Text>
               </View>
               {withVat && (
@@ -1172,7 +1417,7 @@ export default function CreateOrderScreen() {
                 <Text style={s.grandVal}>KSh {fmt(grandTotal)}</Text>
               </View>
 
-              {amountPaid !== '' && (
+              {amountPaid !== "" && (
                 <>
                   <View style={s.summaryRow}>
                     <Text style={s.summaryLabel}>Amount Paid</Text>
@@ -1182,8 +1427,14 @@ export default function CreateOrderScreen() {
                   </View>
                   <View style={s.summaryRow}>
                     <Text style={s.summaryLabel}>Balance</Text>
-                    <Text style={[s.summaryVal, { color: balance > 0 ? Colors.error : Colors.success }]}>
-                      KSh {fmt(Math.abs(balance))}{balance < 0 ? ' (Overpaid)' : ''}
+                    <Text
+                      style={[
+                        s.summaryVal,
+                        { color: balance > 0 ? Colors.error : Colors.success },
+                      ]}
+                    >
+                      KSh {fmt(Math.abs(balance))}
+                      {balance < 0 ? " (Overpaid)" : ""}
                     </Text>
                   </View>
                 </>
@@ -1202,7 +1453,11 @@ export default function CreateOrderScreen() {
               <ActivityIndicator color={Colors.white} size="small" />
             ) : (
               <>
-                <Ionicons name="checkmark-circle" size={22} color={Colors.white} />
+                <Ionicons
+                  name="checkmark-circle"
+                  size={22}
+                  color={Colors.white}
+                />
                 <Text style={s.submitText}>Place Order</Text>
               </>
             )}
@@ -1237,30 +1492,34 @@ const s = StyleSheet.create({
   // Header
   header: {
     backgroundColor: Colors.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: Spacing.md,
     paddingTop: Spacing.lg,
     paddingBottom: Spacing.md,
-    justifyContent: 'space-between',
+    justifyContent: "space-between",
   },
   backBtn: {
     width: 38,
     height: 38,
     borderRadius: 19,
-    backgroundColor: 'rgba(255,255,255,0.15)',
-    alignItems: 'center',
-    justifyContent: 'center',
+    backgroundColor: "rgba(255,255,255,0.15)",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  headerTitle: { fontSize: FontSize.lg, fontWeight: '700', color: Colors.white },
-  headerRight: { width: 38, alignItems: 'center' },
+  headerTitle: {
+    fontSize: FontSize.lg,
+    fontWeight: "700",
+    color: Colors.white,
+  },
+  headerRight: { width: 38, alignItems: "center" },
   gpsDot: {
     width: 24,
     height: 24,
     borderRadius: 12,
     backgroundColor: Colors.success,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
 
   // Scroll
@@ -1268,37 +1527,49 @@ const s = StyleSheet.create({
 
   // Customer section
   selectedBox: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.md,
     backgroundColor: Colors.primarySurface,
     borderRadius: BorderRadius.md,
     padding: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.primary + '30',
+    borderColor: Colors.primary + "30",
   },
   customerAvatar: {
     width: 48,
     height: 48,
     borderRadius: 24,
     backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
-  avatarLetter: { fontSize: FontSize.lg, fontWeight: '700', color: Colors.white },
-  customerName: { fontSize: FontSize.md, fontWeight: '700', color: Colors.textPrimary },
-  customerSub: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
+  avatarLetter: {
+    fontSize: FontSize.lg,
+    fontWeight: "700",
+    color: Colors.white,
+  },
+  customerName: {
+    fontSize: FontSize.md,
+    fontWeight: "700",
+    color: Colors.textPrimary,
+  },
+  customerSub: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
   customerCat: {
     fontSize: FontSize.xs,
     color: Colors.accent,
-    fontWeight: '600',
+    fontWeight: "600",
     marginTop: 4,
-    textTransform: 'capitalize',
+    textTransform: "capitalize",
   },
   clearBtn: { padding: Spacing.xs },
   pickerBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
     borderWidth: 1.5,
     borderColor: Colors.primary,
@@ -1306,7 +1577,12 @@ const s = StyleSheet.create({
     padding: Spacing.md,
     backgroundColor: Colors.primarySurface,
   },
-  pickerBtnText: { flex: 1, fontSize: FontSize.md, color: Colors.primary, fontWeight: '500' },
+  pickerBtnText: {
+    flex: 1,
+    fontSize: FontSize.md,
+    color: Colors.primary,
+    fontWeight: "500",
+  },
   hint: {
     fontSize: FontSize.xs,
     color: Colors.textSecondary,
@@ -1318,15 +1594,15 @@ const s = StyleSheet.create({
   field: { marginBottom: Spacing.md },
   fieldLabel: {
     fontSize: FontSize.xs,
-    fontWeight: '600',
+    fontWeight: "600",
     color: Colors.textSecondary,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.5,
     marginBottom: Spacing.xs,
   },
   inputWrap: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
     borderColor: Colors.gray200,
     borderRadius: BorderRadius.md,
@@ -1335,37 +1611,42 @@ const s = StyleSheet.create({
     backgroundColor: Colors.white,
     gap: Spacing.sm,
   },
-  input: { flex: 1, fontSize: FontSize.md, color: Colors.textPrimary, paddingVertical: Spacing.sm },
+  input: {
+    flex: 1,
+    fontSize: FontSize.md,
+    color: Colors.textPrimary,
+    paddingVertical: Spacing.sm,
+  },
 
   // Address row with GPS button
-  addressRow: { flexDirection: 'row', gap: Spacing.sm },
+  addressRow: { flexDirection: "row", gap: Spacing.sm },
   gpsBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
     backgroundColor: Colors.primary,
     borderRadius: BorderRadius.md,
     paddingHorizontal: Spacing.md,
     minHeight: 44,
     minWidth: 60,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
-  gpsBtnText: { color: Colors.white, fontWeight: '700', fontSize: FontSize.xs },
+  gpsBtnText: { color: Colors.white, fontWeight: "700", fontSize: FontSize.xs },
   gpsCoordText: { fontSize: FontSize.xs, color: Colors.info, marginTop: 4 },
 
   // VAT row
   vatRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingTop: Spacing.sm,
   },
   vatSub: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2 },
 
   // Add product button
   addProductBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: Spacing.sm,
     borderWidth: 1.5,
     borderColor: Colors.primary,
@@ -1379,15 +1660,32 @@ const s = StyleSheet.create({
     height: 30,
     borderRadius: 15,
     backgroundColor: Colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
-  addProductText: { flex: 1, fontSize: FontSize.md, color: Colors.primary, fontWeight: '600' },
+  addProductText: {
+    flex: 1,
+    fontSize: FontSize.md,
+    color: Colors.primary,
+    fontWeight: "600",
+  },
 
   // Empty items
-  emptyItems: { alignItems: 'center', paddingVertical: Spacing.xl, gap: Spacing.sm },
-  emptyItemsText: { fontSize: FontSize.md, color: Colors.textSecondary, fontWeight: '600' },
-  emptyItemsSub: { fontSize: FontSize.sm, color: Colors.gray400, textAlign: 'center' },
+  emptyItems: {
+    alignItems: "center",
+    paddingVertical: Spacing.xl,
+    gap: Spacing.sm,
+  },
+  emptyItemsText: {
+    fontSize: FontSize.md,
+    color: Colors.textSecondary,
+    fontWeight: "600",
+  },
+  emptyItemsSub: {
+    fontSize: FontSize.sm,
+    color: Colors.gray400,
+    textAlign: "center",
+  },
 
   // Line card
   lineCard: {
@@ -1399,42 +1697,58 @@ const s = StyleSheet.create({
     marginBottom: Spacing.sm,
     ...Shadow.sm,
   },
-  lineTop: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: Spacing.sm },
-  lineName: { fontSize: FontSize.md, fontWeight: '600', color: Colors.textPrimary },
+  lineTop: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    marginBottom: Spacing.sm,
+  },
+  lineName: {
+    fontSize: FontSize.md,
+    fontWeight: "600",
+    color: Colors.textPrimary,
+  },
   lineBarcode: { fontSize: FontSize.xs, color: Colors.gray500, marginTop: 2 },
   stockWarning: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
     padding: Spacing.xs,
     borderRadius: BorderRadius.sm,
     marginBottom: Spacing.sm,
   },
-  stockWarningText: { fontSize: FontSize.xs, fontWeight: '600' },
-  lineControls: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-end' },
+  stockWarningText: { fontSize: FontSize.xs, fontWeight: "600" },
+  lineControls: {
+    flexDirection: "row",
+    gap: Spacing.sm,
+    alignItems: "flex-end",
+  },
   qtyWrap: {},
-  lineFieldLabel: { fontSize: FontSize.xs, color: Colors.textSecondary, marginBottom: 4 },
+  lineFieldLabel: {
+    fontSize: FontSize.xs,
+    color: Colors.textSecondary,
+    marginBottom: 4,
+  },
   qtyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
     borderColor: Colors.gray200,
     borderRadius: BorderRadius.md,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   qtyBtn: {
     width: 34,
     height: 38,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: Colors.gray50,
   },
   qtyBtnDisabled: { opacity: 0.4 },
   qtyVal: {
     minWidth: 36,
-    textAlign: 'center',
+    textAlign: "center",
     fontSize: FontSize.md,
-    fontWeight: '700',
+    fontWeight: "700",
     color: Colors.textPrimary,
   },
   priceFld: { flex: 1 },
@@ -1447,19 +1761,23 @@ const s = StyleSheet.create({
     fontSize: FontSize.md,
     color: Colors.textPrimary,
     backgroundColor: Colors.white,
-    textAlign: 'center',
+    textAlign: "center",
   },
   lineTotalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginTop: Spacing.sm,
     paddingTop: Spacing.sm,
     borderTopWidth: 1,
     borderTopColor: Colors.gray100,
   },
   lineTotalLabel: { fontSize: FontSize.sm, color: Colors.textSecondary },
-  lineTotalVal: { fontSize: FontSize.md, fontWeight: '800', color: Colors.primary },
+  lineTotalVal: {
+    fontSize: FontSize.md,
+    fontWeight: "800",
+    color: Colors.primary,
+  },
 
   // Summary card
   summaryCard: {
@@ -1471,24 +1789,32 @@ const s = StyleSheet.create({
   },
   summaryTitle: {
     fontSize: FontSize.md,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.7)',
+    fontWeight: "700",
+    color: "rgba(255,255,255,0.7)",
     marginBottom: Spacing.md,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.5,
   },
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  summaryLabel: { fontSize: FontSize.sm, color: 'rgba(255,255,255,0.6)' },
-  summaryVal: { fontSize: FontSize.sm, color: Colors.white, fontWeight: '600' },
-  divider: { height: 1, backgroundColor: 'rgba(255,255,255,0.15)', marginVertical: Spacing.sm },
-  grandLabel: { fontSize: FontSize.lg, fontWeight: '700', color: Colors.white },
-  grandVal: { fontSize: FontSize.xl, fontWeight: '800', color: Colors.gold },
+  summaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 6,
+  },
+  summaryLabel: { fontSize: FontSize.sm, color: "rgba(255,255,255,0.6)" },
+  summaryVal: { fontSize: FontSize.sm, color: Colors.white, fontWeight: "600" },
+  divider: {
+    height: 1,
+    backgroundColor: "rgba(255,255,255,0.15)",
+    marginVertical: Spacing.sm,
+  },
+  grandLabel: { fontSize: FontSize.lg, fontWeight: "700", color: Colors.white },
+  grandVal: { fontSize: FontSize.xl, fontWeight: "800", color: Colors.gold },
 
   // Submit
   submitBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: Spacing.sm,
     backgroundColor: Colors.accent,
     borderRadius: BorderRadius.lg,
@@ -1496,5 +1822,5 @@ const s = StyleSheet.create({
     marginTop: Spacing.sm,
     ...Shadow.lg,
   },
-  submitText: { fontSize: FontSize.lg, fontWeight: '800', color: Colors.white },
+  submitText: { fontSize: FontSize.lg, fontWeight: "800", color: Colors.white },
 });

@@ -26,15 +26,21 @@ export const DashboardStatsComponent: React.FC<DashboardStatsProps> = ({ stats, 
     );
   }
 
-  const formatCurrency = (value: string | number) => {
-    const num = typeof value === 'string' ? parseFloat(value) : value;
+  const formatCurrency = (value: string | number | null | undefined) => {
+    if (value == null) return 'Ksh 0';
+    const num = typeof value === 'string' ? parseFloat(value) || 0 : value;
     return `Ksh ${num.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
   };
 
-  const formatPercentage = (value: number) => {
-    const sign = value >= 0 ? '+' : '';
-    return `${sign}${value.toFixed(1)}%`;
+  const formatPercentage = (value: number | null | undefined) => {
+    const v = value ?? 0;
+    const sign = v >= 0 ? '+' : '';
+    return `${sign}${v.toFixed(1)}%`;
   };
+
+  const safeNum = (n: number | null | undefined): number => n ?? 0;
+  const safeStr = (n: number | string | null | undefined): string =>
+    n != null ? String(n) : '0';
 
   const PercentageChange: React.FC<{ value: number }> = ({ value }) => (
     <Text style={[styles.percentageText, { color: value >= 0 ? '#10b981' : '#ef4444' }]}>
@@ -51,14 +57,14 @@ export const DashboardStatsComponent: React.FC<DashboardStatsProps> = ({ stats, 
           <StatCard
             icon="people"
             label="Total Customers"
-            value={stats.total_customers.toString()}
-            subtitle={`${stats.customers_this_month} this month`}
+            value={safeStr(stats.total_customers)}
+            subtitle={`${safeNum(stats.customers_this_month)} this month`}
           />
           <StatCard
             icon="trending-up"
             label="Growth"
             value={formatPercentage(stats.customer_percentage_change)}
-            valueColor={stats.customer_percentage_change >= 0 ? '#10b981' : '#ef4444'}
+            valueColor={safeNum(stats.customer_percentage_change) >= 0 ? '#10b981' : '#ef4444'}
           />
         </View>
       </View>
@@ -95,23 +101,23 @@ export const DashboardStatsComponent: React.FC<DashboardStatsProps> = ({ stats, 
           <StatCard
             icon="receipt"
             label="Total Orders"
-            value={stats.total_orders.toString()}
+            value={safeStr(stats.total_orders)}
           />
           <StatCard
             icon="today"
             label="Today"
-            value={stats.orders_today.toString()}
-            subtitle={`${formatPercentage(stats.orders_percentage_change)}`}
+            value={safeStr(stats.orders_today)}
+            subtitle={formatPercentage(stats.orders_percentage_change)}
           />
           <StatCard
             icon="check-circle"
             label="Completed"
-            value={stats.completed_orders.toString()}
+            value={safeStr(stats.completed_orders)}
           />
           <StatCard
             icon="pending-actions"
             label="Pending"
-            value={stats.pending_orders.toString()}
+            value={safeStr(stats.pending_orders)}
           />
         </View>
       </View>
@@ -123,13 +129,13 @@ export const DashboardStatsComponent: React.FC<DashboardStatsProps> = ({ stats, 
           <StatCard
             icon="local-offer"
             label="Total Deals"
-            value={stats.total_deals.toString()}
+            value={safeStr(stats.total_deals)}
           />
           <StatCard
             icon="trending-up"
             label="Growth"
             value={formatPercentage(stats.deals_percentage_change)}
-            valueColor={stats.deals_percentage_change >= 0 ? '#10b981' : '#ef4444'}
+            valueColor={safeNum(stats.deals_percentage_change) >= 0 ? '#10b981' : '#ef4444'}
           />
         </View>
       </View>
@@ -141,13 +147,13 @@ export const DashboardStatsComponent: React.FC<DashboardStatsProps> = ({ stats, 
           <StatCard
             icon="inventory"
             label="Total Products"
-            value={stats.total_products.toString()}
+            value={safeStr(stats.total_products)}
           />
           <StatCard
             icon="warning"
             label="Low Stock Alerts"
-            value={stats.low_stock_alerts.toString()}
-            valueColor={stats.low_stock_alerts > 0 ? '#f59e0b' : '#10b981'}
+            value={safeStr(stats.low_stock_alerts)}
+            valueColor={safeNum(stats.low_stock_alerts) > 0 ? '#f59e0b' : '#10b981'}
           />
         </View>
       </View>
@@ -158,16 +164,16 @@ export const DashboardStatsComponent: React.FC<DashboardStatsProps> = ({ stats, 
           <Text style={styles.sectionTitle}>Top Products</Text>
           {stats.top_products.map((product, index) => (
             <View key={index} style={styles.productItem}>
-              <Text style={styles.productName}>{product.product__name}</Text>
+              <Text style={styles.productName}>{product.product__name ?? '—'}</Text>
               <View style={styles.productStats}>
-                <Text style={styles.productQty}>{product.total_units} units</Text>
-                <Text style={styles.productPercent}>{product.percent.toFixed(1)}%</Text>
+                <Text style={styles.productQty}>{safeNum(product.total_units)} units</Text>
+                <Text style={styles.productPercent}>{(product.percent ?? 0).toFixed(1)}%</Text>
               </View>
               <View style={styles.progressBar}>
                 <View
                   style={[
                     styles.progressFill,
-                    { width: `${Math.min(product.percent, 100)}%` },
+                    { width: `${Math.min(product.percent ?? 0, 100)}%` },
                   ]}
                 />
               </View>
@@ -192,7 +198,9 @@ export const DashboardStatsComponent: React.FC<DashboardStatsProps> = ({ stats, 
               </View>
               <View style={styles.orderFooter}>
                 <Text style={styles.orderDate}>
-                  {new Date(order.order_date).toLocaleDateString()}
+                  {order.order_date
+                    ? new Date(order.order_date).toLocaleDateString()
+                    : '—'}
                 </Text>
                 <View
                   style={[
@@ -202,7 +210,7 @@ export const DashboardStatsComponent: React.FC<DashboardStatsProps> = ({ stats, 
                       : styles.statusPending,
                   ]}
                 >
-                  <Text style={styles.statusText}>{order.paid_status}</Text>
+                  <Text style={styles.statusText}>{order.paid_status ?? '—'}</Text>
                 </View>
               </View>
             </View>

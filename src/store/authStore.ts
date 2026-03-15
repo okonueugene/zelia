@@ -32,10 +32,39 @@ export const useAuthStore = create<AuthStore>((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const response = await authApi.login(credentials);
+//       const response ={
+//     "token": "5809ca2ef5402940847432ff9dbf9cf684463cab",
+//     "user": {
+//         "id": 3,
+//         "user": {
+//             "id": 3,
+//             "username": "Rhoda",
+//             "email": "rhodabenson86@gmail.com",
+//             "first_name": "Rhoda",
+//             "last_name": "Auma",
+//             "is_staff": false,
+//             "is_superuser": false
+//         },
+//         "date_modified": "2025-06-19T15:02:56.046700+03:00",
+//         "phone": "0724889571",
+//         "department": "Sales",
+//         "national_id": "111111",
+//         "join_date": "2025-06-18",
+//         "gender": "Female",
+//         "is_admin": false,
+//         "is_salesperson": true
+//     },
+//     "message": "Login successful"
+// }
       console.log('Login response:', response);
       if (!response || !response.token) {
-      throw new Error("Server returned an empty session. Please try again.");
-    }
+        // Server may return 200 with a message (e.g. Imunify360 block) instead of token/user
+        const serverMessage =
+          response && typeof (response as { message?: string }).message === 'string'
+            ? (response as { message: string }).message
+            : 'Server returned an empty session. Please try again.';
+        throw new Error(serverMessage);
+      }
       await SecureStore.setItemAsync(TOKEN_KEY, response.token);
       await SecureStore.setItemAsync(USER_KEY, JSON.stringify(response.user));
       set({

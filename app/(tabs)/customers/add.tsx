@@ -33,7 +33,12 @@ export default function AddCustomerScreen() {
       queryClient.invalidateQueries({ queryKey: ['customers'] });
       router.replace(`/(tabs)/customers/${customer.id}` as any);
     },
-    onError: () => Toast.show({ type: 'error', text1: 'Failed to add customer' }),
+    onError: (err: Error) =>
+      Toast.show({
+        type: 'error',
+        text1: 'Failed to add customer',
+        text2: err?.message || 'Check your connection and try again.',
+      }),
   });
 
   const validate = () => {

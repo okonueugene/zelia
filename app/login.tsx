@@ -57,7 +57,7 @@ export default function LoginScreen() {
     const e: typeof errors = {};
     if (!username.trim()) e.username = 'Username is required';
     if (!password.trim()) e.password = 'Password is required';
-    // if (!photoResult) e.photo = 'Login photo is required';
+    if (!photoResult) e.photo = 'Login photo is required';
     setErrors(e);
     return Object.keys(e).length === 0;
   };
