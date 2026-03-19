@@ -156,7 +156,15 @@ export default function OrderDetailScreen() {
     return <LoadingSpinner fullScreen message="Loading order..." />;
   }
 
-  const balance = parseFloat(order.total_amount) - parseFloat(order.amount_paid);
+  const balance = parseFloat(order.total_amount) - parseFloat(order.amount_paid ?? '0');
+  // Subtotal from items (server-calculated line totals); fallback to total_amount if no items yet
+  const subtotalFromItems =
+    items && items.length > 0
+      ? items.reduce((sum, it) => sum + parseFloat(it.line_total ?? '0'), 0)
+      : parseFloat(order.total_amount) - parseFloat(order.delivery_fee ?? '0');
+  const deliveryFeeNum = parseFloat(order.delivery_fee ?? '0');
+  const totalAmountNum = parseFloat(order.total_amount);
+  const amountPaidNum = parseFloat(order.amount_paid ?? '0');
 
   const PAYMENT_METHODS: { label: string; value: PaymentMethod }[] = [
     { label: 'Cash', value: 'cash' },
@@ -234,17 +242,24 @@ export default function OrderDetailScreen() {
         <Card style={styles.section}>
           <Text style={styles.sectionTitle}>Financial Summary</Text>
           <View style={styles.financialTable}>
-            <FinRow label="Subtotal" value={`KSh ${parseFloat(order.total_amount).toLocaleString()}`} />
-            <FinRow label="Delivery Fee" value={`KSh ${parseFloat(order.delivery_fee ?? '0').toLocaleString()}`} />
+            <FinRow label="Subtotal" value={`KSh ${subtotalFromItems.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
+            {deliveryFeeNum > 0 && (
+              <FinRow label="Delivery Fee" value={`KSh ${deliveryFeeNum.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`} />
+            )}
+            <FinRow
+              label="Total"
+              value={`KSh ${totalAmountNum.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+              bold
+            />
             <FinRow
               label="Amount Paid"
-              value={`KSh ${parseFloat(order.amount_paid).toLocaleString()}`}
+              value={`KSh ${amountPaidNum.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               color={Colors.success}
             />
             <View style={styles.divider} />
             <FinRow
               label="Balance Due"
-              value={`KSh ${balance.toLocaleString()}`}
+              value={`KSh ${balance.toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
               color={balance > 0 ? Colors.error : Colors.success}
               bold
             />
@@ -263,10 +278,10 @@ export default function OrderDetailScreen() {
                 </View>
                 <View style={styles.orderItemRight}>
                   <Text style={styles.orderItemPrice}>
-                    KSh {parseFloat(item.unit_price).toLocaleString()}
+                    KSh {(parseFloat(item.unit_price ?? '0') || 0).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </Text>
                   <Text style={styles.orderItemTotal}>
-                    = KSh {parseFloat(item.line_total).toLocaleString()}
+                    = KSh {(parseFloat(item.line_total ?? '0') || 0).toLocaleString('en-KE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </Text>
                 </View>
               </View>

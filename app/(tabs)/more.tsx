@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -30,6 +30,8 @@ import { getNotifications, markAllNotificationsRead } from '../../src/api/notifi
 import { getCustomers } from '../../src/api/customers';
 import { submitFeedback } from '../../src/api/feedback';
 import { useAuthStore } from '../../src/store/authStore';
+import { useDebouncedValue } from '../../src/hooks/useDebouncedValue';
+import { normalizeSearchQuery, fuzzyMatch, productSearchableText, customerSearchableText } from '../../src/utils/search';
 import { CameraCapture, type CaptureResult } from '../../src/components/CameraCapture';
 import { Card } from '../../src/components/ui/Card';
 import { Badge } from '../../src/components/ui/Badge';
@@ -63,7 +65,7 @@ export default function MoreScreen() {
   const [fromStore, setFromStore] = useState<StoreLocation>('mcdave');
   const [toStore, setToStore] = useState<StoreLocation>('kisii');
   const [transferItems, setTransferItems] = useState<{ product: number; product_name: string; quantity: string }[]>([]);
-  const [productSearch, setProductSearch] = useState('');
+  const [productSearch, setProductSearch, debouncedProductSearch] = useDebouncedValue('', 300);
   const [showProductDrop, setShowProductDrop] = useState(false);
 
   // Stock adjustment state
@@ -72,11 +74,11 @@ export default function MoreScreen() {
   const [adjStore, setAdjStore] = useState<StoreLocation>('mcdave');
   const [adjQty, setAdjQty] = useState('');
   const [adjReason, setAdjReason] = useState('');
-  const [adjSearch, setAdjSearch] = useState('');
+  const [adjSearch, setAdjSearch, debouncedAdjSearch] = useDebouncedValue('', 300);
   const [showAdjDrop, setShowAdjDrop] = useState(false);
 
   // Feedback state
-  const [feedbackCustomerSearch, setFeedbackCustomerSearch] = useState('');
+  const [feedbackCustomerSearch, setFeedbackCustomerSearch, debouncedFeedbackCustomerSearch] = useDebouncedValue('', 300);
   const [showCustomerDrop, setShowCustomerDrop] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<{ id: number; name: string } | null>(null);
   const [shopName, setShopName] = useState('');
@@ -103,18 +105,26 @@ export default function MoreScreen() {
     enabled: section === 'stock',
   });
 
-  // Single product search query — uses whichever search term is active
-  const activeProductSearch = showAdjDrop ? adjSearch : productSearch;
+  // Single product search query — uses whichever search term is active (debounced + normalized)
+  const activeProductSearchDebounced = showAdjDrop ? debouncedAdjSearch : debouncedProductSearch;
+  const productSearchParam = useMemo(
+    () => (activeProductSearchDebounced ? normalizeSearchQuery(activeProductSearchDebounced) : ''),
+    [activeProductSearchDebounced],
+  );
   const { data: productsData } = useQuery({
-    queryKey: ['products-search', activeProductSearch],
-    queryFn: () => getProducts({ search: activeProductSearch }),
-    enabled: (showProductDrop || showAdjDrop) && activeProductSearch.length > 1,
+    queryKey: ['products-search', productSearchParam],
+    queryFn: () => getProducts({ search: productSearchParam }),
+    enabled: (showProductDrop || showAdjDrop) && productSearchParam.length >= 1,
   });
 
+  const customerSearchParam = useMemo(
+    () => (debouncedFeedbackCustomerSearch ? normalizeSearchQuery(debouncedFeedbackCustomerSearch) : ''),
+    [debouncedFeedbackCustomerSearch],
+  );
   const { data: customersData } = useQuery({
-    queryKey: ['customers-search', feedbackCustomerSearch],
-    queryFn: () => getCustomers({ search: feedbackCustomerSearch }),
-    enabled: showCustomerDrop && feedbackCustomerSearch.length > 1,
+    queryKey: ['customers-search', customerSearchParam],
+    queryFn: () => getCustomers({ search: customerSearchParam }),
+    enabled: showCustomerDrop && customerSearchParam.length >= 1,
   });
 
   const { data: messagesData, isLoading: msgsLoading } = useQuery({
@@ -492,9 +502,13 @@ export default function MoreScreen() {
                 value={productSearch}
                 onChangeText={(v) => { setProductSearch(v); setShowProductDrop(true); }}
               />
-              {showProductDrop && productsData?.results && productsData.results.length > 0 && (
+              {showProductDrop && productsData?.results && productsData.results.length > 0 && (() => {
+                const filtered = productSearchParam
+                  ? productsData.results.filter((p) => fuzzyMatch(productSearchParam, productSearchableText(p)))
+                  : productsData.results;
+                return (
                 <View style={styles.dropdown}>
-                  {productsData.results.slice(0, 5).map((p) => (
+                  {filtered.slice(0, 5).map((p) => (
                     <TouchableOpacity
                       key={p.id}
                       style={styles.dropItem}
@@ -504,7 +518,7 @@ export default function MoreScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
-              )}
+              ); })()}
 
               <ScrollView style={{ maxHeight: 160 }}>
                 {transferItems.map((item, idx) => (
@@ -544,9 +558,13 @@ export default function MoreScreen() {
                 value={adjProduct ? adjProduct.name : adjSearch}
                 onChangeText={(v) => { setAdjSearch(v); setAdjProduct(null); setShowAdjDrop(true); }}
               />
-              {showAdjDrop && !adjProduct && productsData?.results && productsData.results.length > 0 && (
+              {showAdjDrop && !adjProduct && productsData?.results && productsData.results.length > 0 && (() => {
+                const filtered = productSearchParam
+                  ? productsData.results.filter((p) => fuzzyMatch(productSearchParam, productSearchableText(p)))
+                  : productsData.results;
+                return (
                 <View style={styles.dropdown}>
-                  {productsData.results.slice(0, 5).map((p) => (
+                  {filtered.slice(0, 5).map((p) => (
                     <TouchableOpacity
                       key={p.id}
                       style={styles.dropItem}
@@ -556,7 +574,7 @@ export default function MoreScreen() {
                     </TouchableOpacity>
                   ))}
                 </View>
-              )}
+              ); })()}
 
               <Text style={styles.modalLabel}>Store</Text>
               <View style={styles.pillRow}>
@@ -723,9 +741,13 @@ export default function MoreScreen() {
               }}
             />
             {feedbackErrors.customer ? <Text style={styles.errorText}>{feedbackErrors.customer}</Text> : null}
-            {showCustomerDrop && !selectedCustomer && customersData?.results && customersData.results.length > 0 && (
+            {showCustomerDrop && !selectedCustomer && customersData?.results && customersData.results.length > 0 && (() => {
+              const filtered = customerSearchParam
+                ? customersData.results.filter((c) => fuzzyMatch(customerSearchParam, customerSearchableText(c)))
+                : customersData.results;
+              return (
               <View style={styles.dropdown}>
-                {customersData.results.slice(0, 5).map((c) => (
+                {filtered.slice(0, 5).map((c) => (
                   <TouchableOpacity
                     key={c.id}
                     style={styles.dropItem}
@@ -741,10 +763,10 @@ export default function MoreScreen() {
                     }}
                   >
                     <Text style={styles.dropItemText}>{c.first_name} {c.last_name} — {c.phone_number}</Text>
-                  </TouchableOpacity>
-                ))}
+                    </TouchableOpacity>
+                  ))}
               </View>
-            )}
+            ); })()}
           </Card>
 
           <Card style={styles.section}>

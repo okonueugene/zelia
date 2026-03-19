@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,16 +7,20 @@ import {
   TouchableOpacity,
   TextInput,
   RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { getCustomers } from '../../../src/api/customers';
 import { CustomerCard } from '../../../src/components/CustomerCard';
 import { LoadingSpinner } from '../../../src/components/ui/LoadingSpinner';
 import { EmptyState } from '../../../src/components/ui/EmptyState';
 import { Colors, FontSize, Spacing, BorderRadius } from '../../../src/constants/colors';
+import { useDebouncedValue } from '../../../src/hooks/useDebouncedValue';
+import { normalizeSearchQuery, fuzzyMatch, customerSearchableText } from '../../../src/utils/search';
 
 const CATEGORY_FILTERS = [
   { label: 'All', value: '' },
@@ -29,22 +33,91 @@ const CATEGORY_FILTERS = [
 
 export default function CustomersScreen() {
   const router = useRouter();
-  const [search, setSearch] = useState('');
+  const flatListRef = useRef<FlatList>(null);
+
+  const [search, setSearch, debouncedSearch] = useDebouncedValue('', 300);
   const [categoryFilter, setCategoryFilter] = useState('');
 
-  const { data, isLoading, refetch, isRefetching } = useQuery({
-    queryKey: ['customers', search, categoryFilter],
-    queryFn: () =>
-      getCustomers({
-        search: search || undefined,
+  const searchParam = useMemo(
+    () => (debouncedSearch ? normalizeSearchQuery(debouncedSearch) : ''),
+    [debouncedSearch],
+  );
+
+  const {
+    data,
+    isLoading,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+    refetch,
+    isRefetching,
+  } = useInfiniteQuery({
+    queryKey: ['customers', categoryFilter, searchParam],
+    queryFn: async ({ pageParam = 1 }) => {
+      const res = await getCustomers({
         category: categoryFilter || undefined,
-      }),
+        search: searchParam || undefined,
+        page: pageParam,
+      });
+      return res;
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      if (!lastPage.next) return undefined;
+      const url = new URL(lastPage.next);
+      const pageStr = url.searchParams.get('page');
+      return pageStr ? Number(pageStr) : undefined;
+    },
+    staleTime: 2 * 60 * 1000,
   });
 
-  const customers = data?.results ?? [];
+  // All loaded customers across all pages
+  const allLoadedCustomers = useMemo(
+    () => data?.pages.flatMap((page) => page.results) ?? [],
+    [data],
+  );
+
+  // Apply client-side category + search filtering
+  const displayedCustomers = useMemo(() => {
+    let filtered = [...allLoadedCustomers];
+
+    if (categoryFilter) {
+      filtered = filtered.filter((c) => c.default_category === categoryFilter);
+    }
+
+    if (searchParam) {
+      filtered = filtered.filter((c) => fuzzyMatch(searchParam, customerSearchableText(c)));
+    }
+
+    return filtered;
+  }, [allLoadedCustomers, categoryFilter, searchParam]);
+
+  // Scroll to top when filters/search change
+  React.useEffect(() => {
+    if (displayedCustomers.length > 0 && !isLoading) {
+      flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+    }
+  }, [displayedCustomers.length, isLoading, categoryFilter, searchParam]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      refetch();
+    }, [refetch]),
+  );
+
+  const isFiltering = !!categoryFilter || !!searchParam;
+
+  const loadMore = () => {
+    if (hasNextPage && !isFetchingNextPage && !isFiltering) {
+      fetchNextPage();
+    }
+  };
+
+  const totalCount = data?.pages[0]?.count ?? 0;
 
   return (
     <SafeAreaView style={styles.safe}>
+      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Customers</Text>
         <TouchableOpacity
@@ -55,6 +128,7 @@ export default function CustomersScreen() {
         </TouchableOpacity>
       </View>
 
+      {/* Search */}
       <View style={styles.searchWrap}>
         <Ionicons name="search-outline" size={18} color={Colors.gray400} />
         <TextInput
@@ -71,6 +145,7 @@ export default function CustomersScreen() {
         )}
       </View>
 
+      {/* Category Filter Pills */}
       <View style={styles.filterSection}>
         <Text style={styles.filterLabel}>Filter by Category</Text>
         <FlatList
@@ -94,15 +169,21 @@ export default function CustomersScreen() {
         />
       </View>
 
-      {!isLoading && data && (
-        <Text style={styles.count}>{data.count} customer{data.count !== 1 ? 's' : ''}</Text>
+      {/* Count */}
+      {!isLoading && (
+        <Text style={styles.count}>
+          {displayedCustomers.length} customer{displayedCustomers.length !== 1 ? 's' : ''}
+          {totalCount > 0 ? ` of ${totalCount} total` : ''}
+        </Text>
       )}
 
+      {/* List */}
       {isLoading ? (
         <LoadingSpinner message="Loading customers..." />
       ) : (
         <FlatList
-          data={customers}
+          ref={flatListRef}
+          data={displayedCustomers}
           keyExtractor={(item) => String(item.id)}
           renderItem={({ item }) => (
             <CustomerCard
@@ -110,18 +191,37 @@ export default function CustomersScreen() {
               onPress={() => router.push(`/(tabs)/customers/${item.id}` as any)}
             />
           )}
-          contentContainerStyle={[styles.list, customers.length === 0 && { flex: 1 }]}
+          contentContainerStyle={[styles.list, displayedCustomers.length === 0 && { flex: 1 }]}
           ListEmptyComponent={
             <EmptyState
               icon="people-outline"
               title="No Customers Found"
-              description={search ? 'Try a different search.' : 'Add your first customer.'}
+              description={
+                searchParam || categoryFilter
+                  ? 'No customers match your current filters or search.'
+                  : 'Add your first customer.'
+              }
               actionLabel="Add Customer"
               onAction={() => router.push('/(tabs)/customers/add' as any)}
             />
           }
+          ListFooterComponent={
+            isFetchingNextPage ? (
+              <View style={styles.footerLoader}>
+                <ActivityIndicator size="small" color={Colors.primary} />
+                <Text style={styles.footerText}>Loading more...</Text>
+              </View>
+            ) : null
+          }
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
           refreshControl={
-            <RefreshControl refreshing={isRefetching} onRefresh={refetch} colors={[Colors.primary]} />
+            <RefreshControl
+              refreshing={isRefetching}
+              onRefresh={refetch}
+              colors={[Colors.primary]}
+              tintColor={Colors.primary}
+            />
           }
           showsVerticalScrollIndicator={false}
         />
@@ -164,11 +264,6 @@ const styles = StyleSheet.create({
     gap: Spacing.sm,
   },
   search: { flex: 1, fontSize: FontSize.md, color: Colors.textPrimary },
-  filters: {
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.md,
-    gap: Spacing.md,
-  },
   filterSection: {
     backgroundColor: Colors.white,
     borderBottomWidth: 1,
@@ -183,6 +278,11 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.sm,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
+  },
+  filters: {
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.md,
+    gap: Spacing.md,
   },
   filterPill: {
     paddingHorizontal: Spacing.lg,
@@ -217,7 +317,19 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
     paddingHorizontal: Spacing.lg,
+    marginTop: Spacing.sm,
     marginBottom: Spacing.xs,
   },
   list: { padding: Spacing.md, paddingBottom: Spacing.xxl },
+  footerLoader: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  footerText: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+  },
 });

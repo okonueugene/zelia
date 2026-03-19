@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useMemo } from "react";
 import {
   View,
   Text,
@@ -15,6 +15,7 @@ import {
   Alert,
 } from "react-native";
 import { useRouter } from "expo-router";
+import { useFocusEffect } from "@react-navigation/native";
 import {
   SafeAreaView,
   useSafeAreaInsets,
@@ -29,6 +30,13 @@ import {
   getProductPriceByCategory,
 } from "../../../src/api/products";
 import { createOrder } from "../../../src/api/orders";
+import { useDebouncedValue } from "../../../src/hooks/useDebouncedValue";
+import {
+  normalizeSearchQuery,
+  fuzzyMatch,
+  customerSearchableText,
+  productSearchableText,
+} from "../../../src/utils/search";
 import {
   Colors,
   FontSize,
@@ -42,6 +50,7 @@ import type {
   ProductListItem,
   StoreLocation,
 } from "../../../src/types";
+import { useLastOrderStore } from '../../../src/store/lastOrderStore';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -233,16 +242,26 @@ function CustomerPickerModal({
   onSelect,
 }: CustomerPickerModalProps) {
   const insets = useSafeAreaInsets();
-  const [query, setQuery] = useState("");
+  const [query, setQuery, debouncedQuery] = useDebouncedValue("", 300);
+  const searchParam = useMemo(
+    () => (debouncedQuery ? normalizeSearchQuery(debouncedQuery) : ""),
+    [debouncedQuery],
+  );
 
   const { data, isFetching } = useQuery({
-    queryKey: ["customer-search", query],
-    queryFn: () => getCustomers({ search: query }),
-    enabled: query.length >= 1,
+    queryKey: ["customer-search", searchParam],
+    queryFn: () => getCustomers({ search: searchParam }),
+    enabled: searchParam.length >= 1,
     staleTime: 10_000,
   });
 
-  const customers = data?.results ?? [];
+  const rawCustomers = data?.results ?? [];
+  const customers = useMemo(() => {
+    if (!searchParam) return rawCustomers;
+    return rawCustomers.filter((c) =>
+      fuzzyMatch(searchParam, customerSearchableText(c)),
+    );
+  }, [rawCustomers, searchParam]);
 
   return (
     <Modal
@@ -291,7 +310,7 @@ function CustomerPickerModal({
         ) : customers.length === 0 && !isFetching ? (
           <View style={cpk.empty}>
             <Ionicons name="search-outline" size={48} color={Colors.gray300} />
-            <Text style={cpk.emptyText}>No customers found for "{query}"</Text>
+            <Text style={cpk.emptyText}>No customers found for "{query || searchParam}"</Text>
           </View>
         ) : (
           <FlatList
@@ -449,16 +468,26 @@ function ProductPickerModal({
   addedIds,
 }: ProductPickerModalProps) {
   const insets = useSafeAreaInsets();
-  const [query, setQuery] = useState("");
+  const [query, setQuery, debouncedQuery] = useDebouncedValue("", 300);
+  const searchParam = useMemo(
+    () => (debouncedQuery ? normalizeSearchQuery(debouncedQuery) : ""),
+    [debouncedQuery],
+  );
 
   const { data, isFetching } = useQuery({
-    queryKey: ["product-search", query],
-    queryFn: () => getProducts({ search: query }),
-    enabled: query.length >= 1,
+    queryKey: ["product-search", searchParam],
+    queryFn: () => getProducts({ search: searchParam }),
+    enabled: searchParam.length >= 1,
     staleTime: 10_000,
   });
 
-  const products = data?.results ?? [];
+  const rawProducts = data?.results ?? [];
+  const products = useMemo(() => {
+    if (!searchParam) return rawProducts;
+    return rawProducts.filter((p) =>
+      fuzzyMatch(searchParam, productSearchableText(p)),
+    );
+  }, [rawProducts, searchParam]);
 
   const stockColor = (stock: number) => {
     if (stock <= 0) return Colors.error;
@@ -518,7 +547,7 @@ function ProductPickerModal({
         ) : products.length === 0 && !isFetching ? (
           <View style={ppk.empty}>
             <Ionicons name="search-outline" size={48} color={Colors.gray300} />
-            <Text style={ppk.emptyText}>No products found for "{query}"</Text>
+            <Text style={ppk.emptyText}>No products found for "{query || searchParam}"</Text>
           </View>
         ) : (
           <FlatList
@@ -744,6 +773,48 @@ export default function CreateOrderScreen() {
 
   const addedIds = new Set(lines.map((l) => l.product_id));
 
+  useFocusEffect(
+  React.useCallback(() => {
+    const context = useLastOrderStore.getState();
+    
+    // Only reset if we DON'T have a saved context, 
+    // or keep specific fields for speed.
+    if (!context.lastCustomerId) {
+      setSelectedCustomer(null);
+      setStore("mcdave");
+      setCategory("wholesale");
+    } else {
+      // Logic to re-fetch or set the last customer would go here
+      setStore(context.lastStore || "mcdave");
+      setCategory(context.lastCategory || "wholesale");
+    }
+
+    // Always clear transient items like lines and GPS
+    setLines([]);
+    setAmountPaid("");
+    setGpsCoords(null);
+    setLocationAddress("");
+  }, [])
+);
+
+  // useFocusEffect(
+  //   React.useCallback(() => {
+  //     setSelectedCustomer(null);
+  //     setStore("mcdave");
+  //     setCategory("wholesale");
+  //     setAddress("");
+  //     setPhone("");
+  //     setWithVat(false);
+  //     setDeliveryFee("");
+  //     setAmountPaid("");
+  //     setLines([]);
+  //     setLocationAddress("");
+  //     setGpsCoords(null);
+  //     setShowCustomerPicker(false);
+  //     setShowProductPicker(false);
+  //   }, []),
+  // );
+
   // ─── GPS capture ────────────────────────────────────────────────────────────
 
   const captureGps = useCallback(async () => {
@@ -934,25 +1005,27 @@ export default function CreateOrderScreen() {
 
   // ─── Submit ──────────────────────────────────────────────────────────────────
 
-  const { mutate: submitOrder, isPending } = useMutation({
-    mutationFn: createOrder,
-    onSuccess: (order) => {
-      Toast.show({
-        type: "success",
-        text1: `Order #${order.id} created!`,
-        text2: "Order placed successfully",
-      });
-      queryClient.invalidateQueries({ queryKey: ["orders"] });
-      queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
-      router.replace(`/(tabs)/orders/${order.id}` as any);
-    },
-    onError: (e: Error) =>
-      Toast.show({
-        type: "error",
-        text1: "Failed to create order",
-        text2: e.message,
-      }),
-  });
+  // const { mutate: submitOrder, isPending } = useMutation({
+  //   mutationFn: createOrder,
+  //   onSuccess: (order) => {
+  //     Toast.show({
+  //       type: "success",
+  //       text1: `Order #${order.id} created!`,
+  //       text2: "Order placed successfully",
+  //     });
+  //     queryClient.invalidateQueries({ queryKey: ["orders"] });
+  //     queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+  //     queryClient.invalidateQueries({ queryKey: ["order", order.id] });
+  //     queryClient.invalidateQueries({ queryKey: ["order-items", order.id] });
+  //     router.replace(`/(tabs)/orders/${order.id}` as any);
+  //   },
+  //   onError: (e: Error) =>
+  //     Toast.show({
+  //       type: "error",
+  //       text1: "Failed to create order",
+  //       text2: e.message,
+  //     }),
+  // });
 
   const handleSubmit = () => {
     if (!selectedCustomer) {
@@ -1001,6 +1074,49 @@ export default function CreateOrderScreen() {
       ),
     );
   };
+
+  // Inside OrderCreateScreen component:
+const { mutate: submitOrder, isPending } = useMutation({
+  mutationFn: createOrder,
+  onSuccess: (order) => {
+    // 1. Save context for the NEXT order to allow quick pre-filling
+    useLastOrderStore.getState().setLastOrderContext({
+      lastCustomerId: selectedCustomer?.id,
+      lastStore: store,
+      lastCategory: category,
+    });
+
+    // 2. Show rich feedback with actions
+    Toast.show({
+      type: 'success',
+      text1: `Order #${order.id} Created`,
+      text2: 'What would you like to do next?',
+      visibilityTime: 6000,
+      onPress: () => router.push(`/(tabs)/orders/${order.id}` as any), // Tap toast to see details
+      // Note: Custom actions below require 'react-native-toast-message' v2+ 
+      // or a custom Toast component.
+      props: {
+        onView: () => router.push(`/(tabs)/orders/${order.id}` as any),
+        onNew: () => {
+          router.back();
+          setTimeout(() => router.push('/(tabs)/orders/create'), 300);
+        }
+      }
+    });
+
+    // 3. Refresh all relevant data
+    queryClient.invalidateQueries({ queryKey: ["orders"] });
+    queryClient.invalidateQueries({ queryKey: ["dashboard-stats"] });
+
+    // 4. Smoothly return to the list instead of forcing the Detail screen
+    router.back(); 
+  },
+  onError: (e: Error) => Toast.show({ 
+    type: 'error', 
+    text1: 'Failed to create order', 
+    text2: e.message 
+  }),
+});
 
   // ─── Render ──────────────────────────────────────────────────────────────────
 

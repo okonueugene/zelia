@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -7,46 +7,126 @@ import {
   TextInput,
   TouchableOpacity,
   RefreshControl,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { getProducts } from '../../../src/api/products';
 import { ProductCard } from '../../../src/components/ProductCard';
 import { LoadingSpinner } from '../../../src/components/ui/LoadingSpinner';
 import { EmptyState } from '../../../src/components/ui/EmptyState';
 import { Colors, FontSize, Spacing, BorderRadius } from '../../../src/constants/colors';
+import { useDebouncedValue } from '../../../src/hooks/useDebouncedValue';
+import { normalizeSearchQuery, fuzzyMatch, productSearchableText } from '../../../src/utils/search';
 
 const STATUS_FILTERS = [
   { label: 'All', value: '' },
-  { label: 'Active', value: 'active' },
-  { label: 'Inactive', value: 'inactive' },
+  { label: 'Available', value: 'available' },
+  { label: 'Unavailable', value: 'unavailable' },
 ];
 
 export default function ProductsScreen() {
   const router = useRouter();
-  const [search, setSearch] = useState('');
+  const flatListRef = useRef<FlatList>(null);
+
+  const [search, setSearch, debouncedSearch] = useDebouncedValue('', 300);
   const [statusFilter, setStatusFilter] = useState('');
 
-  const { data, isLoading, refetch, isRefetching } = useQuery({
-    queryKey: ['products', search, statusFilter],
-    queryFn: () =>
-      getProducts({
-        search: search || undefined,
+  const searchParam = useMemo(
+    () => (debouncedSearch ? normalizeSearchQuery(debouncedSearch) : ''),
+    [debouncedSearch],
+  );
+
+  const {
+    data,
+    isLoading,
+    isFetchingNextPage,
+    hasNextPage,
+    fetchNextPage,
+    refetch,
+    isRefetching,
+  } = useInfiniteQuery({
+    queryKey: ['products', statusFilter, searchParam],
+    queryFn: async ({ pageParam = 1 }) => {
+      const res = await getProducts({
         status: statusFilter || undefined,
-      }),
+        search: searchParam || undefined,
+        page: pageParam,
+      });
+      return res;
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage) => {
+      if (!lastPage.next) return undefined;
+      try {
+        const url = new URL(lastPage.next);
+        const pageStr = url.searchParams.get('page');
+        return pageStr ? Number(pageStr) : undefined;
+      } catch {
+        // Fallback: extract page param manually
+        const match = lastPage.next.match(/[?&]page=(\d+)/);
+        return match ? Number(match[1]) : undefined;
+      }
+    },
+    staleTime: 0,
   });
 
-  const products = data?.results ?? [];
+  // All loaded products across all pages
+  const allLoadedProducts = useMemo(
+    () => data?.pages.flatMap((page) => page.results) ?? [],
+    [data],
+  );
+
+  // Apply client-side status + search filtering
+  const displayedProducts = useMemo(() => {
+    let filtered = [...allLoadedProducts];
+
+    if (statusFilter) {
+      filtered = filtered.filter((p) => p.status === statusFilter);
+    }
+
+    if (searchParam) {
+      filtered = filtered.filter((p) => fuzzyMatch(searchParam, productSearchableText(p)));
+    }
+
+    return filtered;
+  }, [allLoadedProducts, statusFilter, searchParam]);
+
+  // Scroll to top when filters/search change
+  React.useEffect(() => {
+    if (displayedProducts.length > 0 && !isLoading) {
+      flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
+    }
+  }, [displayedProducts.length, isLoading, statusFilter, searchParam]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      refetch();
+    }, [refetch]),
+  );
+
+  const isFiltering = !!statusFilter || !!searchParam;
+
+  const loadMore = () => {
+    if (hasNextPage && !isFetchingNextPage && !isFiltering) {
+      fetchNextPage();
+    }
+  };
+
+  const totalCount = data?.pages[0]?.count ?? 0;
 
   return (
     <SafeAreaView style={styles.safe}>
+      {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerTitle}>Products</Text>
         <Ionicons name="cube-outline" size={24} color={Colors.white} />
       </View>
 
+      {/* Search */}
       <View style={styles.searchWrap}>
         <Ionicons name="search-outline" size={18} color={Colors.gray400} />
         <TextInput
@@ -63,6 +143,7 @@ export default function ProductsScreen() {
         )}
       </View>
 
+      {/* Status Filter Pills */}
       <View style={styles.filters}>
         {STATUS_FILTERS.map((f) => (
           <TouchableOpacity
@@ -77,15 +158,21 @@ export default function ProductsScreen() {
         ))}
       </View>
 
-      {!isLoading && data && (
-        <Text style={styles.count}>{data.count} product{data.count !== 1 ? 's' : ''}</Text>
+      {/* Count */}
+      {!isLoading && (
+        <Text style={styles.count}>
+          {displayedProducts.length} product{displayedProducts.length !== 1 ? 's' : ''}
+          {totalCount > 0 ? ` of ${totalCount} total` : ''}
+        </Text>
       )}
 
+      {/* List */}
       {isLoading ? (
         <LoadingSpinner message="Loading products..." />
       ) : (
         <FlatList
-          data={products}
+          ref={flatListRef}
+          data={displayedProducts}
           keyExtractor={(item) => String(item.id)}
           renderItem={({ item }) => (
             <ProductCard
@@ -93,16 +180,35 @@ export default function ProductsScreen() {
               onPress={() => router.push(`/(tabs)/products/${item.id}` as any)}
             />
           )}
-          contentContainerStyle={[styles.list, products.length === 0 && { flex: 1 }]}
+          contentContainerStyle={[styles.list, displayedProducts.length === 0 && { flex: 1 }]}
           ListEmptyComponent={
             <EmptyState
               icon="cube-outline"
               title="No Products Found"
-              description={search ? 'Try a different search.' : 'No products available.'}
+              description={
+                searchParam || statusFilter
+                  ? 'No products match your current filters or search.'
+                  : 'No products available.'
+              }
             />
           }
+          ListFooterComponent={
+            isFetchingNextPage ? (
+              <View style={styles.footerLoader}>
+                <ActivityIndicator size="small" color={Colors.primary} />
+                <Text style={styles.footerText}>Loading more...</Text>
+              </View>
+            ) : null
+          }
+          onEndReached={loadMore}
+          onEndReachedThreshold={0.5}
           refreshControl={
-            <RefreshControl refreshing={isRefetching} onRefresh={refetch} colors={[Colors.primary]} />
+            <RefreshControl
+              refreshing={isRefetching}
+              onRefresh={refetch}
+              colors={[Colors.primary]}
+              tintColor={Colors.primary}
+            />
           }
           showsVerticalScrollIndicator={false}
         />
@@ -162,4 +268,15 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xs,
   },
   list: { padding: Spacing.md, paddingBottom: Spacing.xxl },
+  footerLoader: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: Spacing.lg,
+    gap: Spacing.sm,
+  },
+  footerText: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+  },
 });
