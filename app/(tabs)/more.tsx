@@ -23,6 +23,7 @@ import {
   createStockTransfer,
   confirmStockTransfer,
   createStockAdjustment,
+  type LowStockProduct,
 } from '../../src/api/stock';
 import { getProducts } from '../../src/api/products';
 import { getMessages, sendMessage } from '../../src/api/messages';
@@ -41,7 +42,6 @@ import { LoadingSpinner } from '../../src/components/ui/LoadingSpinner';
 import { EmptyState } from '../../src/components/ui/EmptyState';
 import { Colors, FontSize, Spacing, BorderRadius } from '../../src/constants/colors';
 import type { StoreLocation, FeedbackType } from '../../src/types';
-
 type Section = 'menu' | 'stock' | 'messages' | 'notifications' | 'profile' | 'feedback';
 
 const STORES: StoreLocation[] = ['mcdave', 'kisii', 'offshore'];
@@ -407,27 +407,32 @@ export default function MoreScreen() {
             <LoadingSpinner message="Loading stock data..." />
           ) : (
             <>
-              <Text style={styles.sectionTitle}>Stock Alerts</Text>
+              <Text style={styles.sectionTitle}>Low Stock Alerts</Text>
               {stockAlerts && stockAlerts.length > 0 ? (
-                stockAlerts.map((alert) => (
-                  <Card key={alert.id} style={styles.alertCard}>
-                    <View style={styles.alertRow}>
-                      <Ionicons
-                        name={alert.alert_type === 'out_of_stock' ? 'close-circle' : 'warning'}
-                        size={20}
-                        color={alert.alert_type === 'out_of_stock' ? Colors.error : Colors.warning}
-                      />
-                      <View style={styles.alertInfo}>
-                        <Text style={styles.alertProduct}>{alert.product_name ?? `Product #${alert.product}`}</Text>
-                        <Text style={styles.alertStore}>{alert.store} · {alert.alert_type.replace('_', ' ')}</Text>
+                stockAlerts.map((product: LowStockProduct) => {
+                  const isOut = product.total_stock === 0;
+                  return (
+                    <Card key={product.id} style={styles.alertCard}>
+                      <View style={styles.alertRow}>
+                        <Ionicons
+                          name={isOut ? 'close-circle' : 'warning'}
+                          size={20}
+                          color={isOut ? Colors.error : Colors.warning}
+                        />
+                        <View style={styles.alertInfo}>
+                          <Text style={styles.alertProduct}>{product.name}</Text>
+                          <Text style={styles.alertStore}>
+                            {`McDave: ${product.mcdave_stock} · Kisii: ${product.kisii_stock} · Offshore: ${product.offshore_stock}`}
+                          </Text>
+                        </View>
+                        <Badge
+                          label={isOut ? 'Out of Stock' : 'Low Stock'}
+                          variant={isOut ? 'error' : 'warning'}
+                        />
                       </View>
-                      <Badge
-                        label={alert.alert_type === 'out_of_stock' ? 'Out of Stock' : 'Low Stock'}
-                        variant={alert.alert_type === 'out_of_stock' ? 'error' : 'warning'}
-                      />
-                    </View>
-                  </Card>
-                ))
+                    </Card>
+                  );
+                })
               ) : (
                 <EmptyState icon="checkmark-circle-outline" title="No Stock Alerts" description="All stock levels are healthy!" />
               )}
