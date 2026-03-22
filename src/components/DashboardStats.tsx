@@ -1,8 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { MaterialIcons } from '@expo/vector-icons';
-import { Colors } from '../constants/colors';
+import { Colors, FontSize, Spacing } from '../constants/colors';
 import type { DashboardStats } from '../types';
+import { OrderCard } from './OrderCard';
+import { router } from 'expo-router';
 
 interface DashboardStatsProps {
   stats: DashboardStats | null;
@@ -186,35 +188,21 @@ export const DashboardStatsComponent: React.FC<DashboardStatsProps> = ({ stats, 
       {stats.recent_orders && stats.recent_orders.length > 0 && (
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Recent Orders</Text>
-          {stats.recent_orders.map((order) => (
-            <View key={order.id} style={styles.orderItem}>
-              <View style={styles.orderHeader}>
-                <Text style={styles.orderCustomer}>
-                  {order.customer?.first_name} {order.customer?.last_name}
-                </Text>
-                <Text style={styles.orderAmount}>
-                  {formatCurrency(order.total_amount)}
-                </Text>
-              </View>
-              <View style={styles.orderFooter}>
-                <Text style={styles.orderDate}>
-                  {order.order_date
-                    ? new Date(order.order_date).toLocaleDateString()
-                    : '—'}
-                </Text>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    order.paid_status === 'completed'
-                      ? styles.statusCompleted
-                      : styles.statusPending,
-                  ]}
-                >
-                  <Text style={styles.statusText}>{order.paid_status ?? '—'}</Text>
-                </View>
-              </View>
-            </View>
-          ))}
+          <TouchableOpacity
+                              onPress={() => router.push('/(tabs)/orders')}
+                              accessibilityRole="button"
+                              accessibilityLabel="See all orders"
+                            >
+                              <Text style={styles.seeAll}>See All →</Text>
+                            </TouchableOpacity>
+           {stats.recent_orders.slice(0, 5).map((order) => (
+                           <OrderCard
+                             key={order.id}
+                             order={order}
+                             onPress={() => router.push(`/(tabs)/orders/${order.id}` as any)}
+                           />
+                         ))}
+                         
         </View>
       )}
     </ScrollView>
@@ -411,4 +399,17 @@ const styles = StyleSheet.create({
     color: '#374151',
     textTransform: 'capitalize',
   },
+  orderStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  orderStatusText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#6b7280',
+  },
+
+  seeAll: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: '600' },
+  seeAllContainer: { alignItems: 'flex-end', marginBottom: Spacing.sm },
 });

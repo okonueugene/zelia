@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   StyleSheet,
   TouchableOpacity,
   RefreshControl,
+  Alert,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -13,7 +14,8 @@ import { useQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { format } from 'date-fns';
 import { getDashboardStats } from '../../src/api/orders';
-import { useAuthStore } from '../../src/store/authStore';
+import { useAuthStore, selectIsAuthenticated } from '../../src/store/authStore';
+import { useAppStore } from '../../src/store/appStore';
 import { StatsCard } from '../../src/components/StatsCard';
 import { OrderCard } from '../../src/components/OrderCard';
 import { DashboardStatsComponent } from '../../src/components/DashboardStats';
@@ -23,18 +25,25 @@ import { Colors, FontSize, Spacing, BorderRadius, Shadow } from '../../src/const
 export default function DashboardScreen() {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
+  const isAuthenticated = useAuthStore(selectIsAuthenticated);
+  const unreadCount = useAppStore((s) => s.unreadCount ?? 0);
+  const unreadNotifications = useAppStore((s) => s.unreadNotifications ?? 0);
 
-  const { data: stats, isLoading, refetch, isRefetching } = useQuery({
+  const { data: stats, isLoading, refetch, isRefetching, isError } = useQuery({
     queryKey: ['dashboard-stats'],
     queryFn: getDashboardStats,
+    enabled: isAuthenticated,
   });
 
-  const greeting = () => {
+  const greeting = useCallback(() => {
     const hour = new Date().getHours();
     if (hour < 12) return 'Good morning';
     if (hour < 17) return 'Good afternoon';
     return 'Good evening';
-  };
+  }, []);
+
+  const firstName = user?.user?.first_name ?? user?.user?.username ?? 'User';
+  const avatarLetter = firstName[0]?.toUpperCase() ?? 'U';
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -43,19 +52,17 @@ export default function DashboardScreen() {
         <View style={{ flex: 1 }}>
           <Text style={styles.greeting}>{greeting()},</Text>
           <View style={styles.nameRow}>
-            <Text style={styles.name}>
-              {user?.user?.first_name ?? user?.user?.username ?? 'User'}
-            </Text>
+            <Text style={styles.name} numberOfLines={1}>{firstName}</Text>
             {user?.is_admin && (
-              <View style={styles.adminBadge}>
+              <View style={styles.roleBadge}>
                 <Ionicons name="shield-checkmark" size={11} color={Colors.gold} />
-                <Text style={styles.adminBadgeText}>Admin</Text>
+                <Text style={styles.roleBadgeText}>Admin</Text>
               </View>
             )}
             {user?.is_salesperson && !user?.is_admin && (
-              <View style={[styles.adminBadge, { backgroundColor: 'rgba(255,255,255,0.15)' }]}>
+              <View style={[styles.roleBadge, styles.salesBadge]}>
                 <Ionicons name="briefcase-outline" size={11} color={Colors.white} />
-                <Text style={styles.adminBadgeText}>Sales</Text>
+                <Text style={styles.roleBadgeText}>Sales</Text>
               </View>
             )}
           </View>
@@ -63,21 +70,32 @@ export default function DashboardScreen() {
             <Text style={styles.department}>{user.department}</Text>
           )}
         </View>
+
         <View style={styles.headerActions}>
+          {/* Notifications button with live badge */}
           <TouchableOpacity
             onPress={() => router.push('/(tabs)/more')}
             style={styles.headerBtn}
+            accessibilityLabel={`Notifications${unreadNotifications > 0 ? `, ${unreadNotifications} unread` : ''}`}
           >
             <Ionicons name="notifications-outline" size={22} color={Colors.white} />
+            {unreadNotifications > 0 && (
+              <View style={styles.notifBadge}>
+                <Text style={styles.notifBadgeText}>
+                  {unreadNotifications > 99 ? '99+' : unreadNotifications}
+                </Text>
+              </View>
+            )}
           </TouchableOpacity>
+
+          {/* Avatar */}
           <TouchableOpacity
             onPress={() => router.push('/(tabs)/more')}
             style={styles.headerBtn}
+            accessibilityLabel="My profile"
           >
             <View style={styles.avatarCircle}>
-              <Text style={styles.avatarText}>
-                {(user?.user?.first_name?.[0] ?? user?.user?.username?.[0] ?? 'U').toUpperCase()}
-              </Text>
+              <Text style={styles.avatarText}>{avatarLetter}</Text>
             </View>
           </TouchableOpacity>
         </View>
@@ -92,17 +110,28 @@ export default function DashboardScreen() {
             refreshing={isRefetching}
             onRefresh={refetch}
             colors={[Colors.primary]}
+            tintColor={Colors.primary}
           />
         }
       >
-        {/* Date */}
         <Text style={styles.date}>{format(new Date(), 'EEEE, dd MMMM yyyy')}</Text>
 
+        {/* Error state */}
+        {isError && !isLoading && (
+          <TouchableOpacity style={styles.errorBanner} onPress={() => refetch()}>
+            <Ionicons name="alert-circle-outline" size={18} color={Colors.error} />
+            <Text style={styles.errorBannerText}>Failed to load stats — tap to retry</Text>
+          </TouchableOpacity>
+        )}
+
         {isLoading ? (
-          <LoadingSpinner message="Loading dashboard..." />
+          <LoadingSpinner 
+          fullScreen
+          size="large"
+          message="Loading dashboard..." />
         ) : (
           <>
-            {/* Stats Grid */}
+            {/* Overview stats */}
             <Text style={styles.sectionTitle}>Overview</Text>
             <View style={styles.statsGrid}>
               <StatsCard
@@ -111,6 +140,7 @@ export default function DashboardScreen() {
                 icon="receipt-outline"
                 iconColor={Colors.primary}
                 iconBg={Colors.primarySurface}
+                onPress={() => router.push('/(tabs)/orders')}
               />
               <StatsCard
                 label="Customers"
@@ -118,6 +148,7 @@ export default function DashboardScreen() {
                 icon="people-outline"
                 iconColor={Colors.secondary}
                 iconBg={Colors.secondarySurface}
+                onPress={() => router.push('/(tabs)/customers')}
               />
             </View>
             <View style={styles.statsGrid}>
@@ -134,6 +165,7 @@ export default function DashboardScreen() {
                 icon="time-outline"
                 iconColor={Colors.warning}
                 iconBg={Colors.warningSurface}
+                onPress={() => router.push('/(tabs)/orders')}
               />
             </View>
             <View style={styles.statsGrid}>
@@ -143,13 +175,15 @@ export default function DashboardScreen() {
                 icon="cube-outline"
                 iconColor={Colors.info}
                 iconBg={Colors.infoSurface}
+                onPress={() => router.push('/(tabs)/products')}
               />
               <StatsCard
-                label="Low Stock Alerts"
+                label="Low Stock"
                 value={stats?.low_stock_alerts ?? 0}
                 icon="alert-circle-outline"
-                iconColor={Colors.error}
-                iconBg={Colors.errorSurface}
+                iconColor={(stats?.low_stock_alerts ?? 0) > 0 ? Colors.error : Colors.success}
+                iconBg={(stats?.low_stock_alerts ?? 0) > 0 ? Colors.errorSurface : Colors.successSurface}
+                onPress={() => router.push('/(tabs)/more')}
               />
             </View>
 
@@ -167,6 +201,8 @@ export default function DashboardScreen() {
                   style={styles.quickActionBtn}
                   onPress={() => router.push(action.route as any)}
                   activeOpacity={0.75}
+                  accessibilityLabel={action.label}
+                  accessibilityRole="button"
                 >
                   <View style={[styles.quickActionIcon, { backgroundColor: action.color + '18' }]}>
                     <Ionicons name={action.icon as any} size={24} color={action.color} />
@@ -175,12 +211,14 @@ export default function DashboardScreen() {
                 </TouchableOpacity>
               ))}
             </View>
-            {/* Detailed Dashboard Stats */}
+
+            {/* Detailed analytics */}
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Detailed Analytics</Text>
             </View>
             <DashboardStatsComponent stats={stats ?? null} loading={isLoading} />
-            {/* Admin-only: Additional stats */}
+
+            {/* Admin-only section */}
             {user?.is_admin && (
               <>
                 <View style={styles.sectionHeader}>
@@ -195,42 +233,32 @@ export default function DashboardScreen() {
                     style={styles.adminStatCard}
                     onPress={() => router.push('/(tabs)/more' as any)}
                     activeOpacity={0.8}
+                    accessibilityLabel="Stock Transfers"
                   >
                     <Ionicons name="swap-horizontal-outline" size={22} color={Colors.primary} />
                     <Text style={styles.adminStatLabel}>Stock Transfers</Text>
                     <Text style={styles.adminStatSub}>Manage inter-store stock</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
-                    style={styles.adminStatCard}
+                    style={[
+                      styles.adminStatCard,
+                      (stats?.low_stock_alerts ?? 0) > 0 && styles.adminStatCardAlert,
+                    ]}
                     onPress={() => router.push('/(tabs)/more' as any)}
                     activeOpacity={0.8}
+                    accessibilityLabel="Low Stock alerts"
                   >
-                    <Ionicons name="alert-circle-outline" size={22} color={Colors.warning} />
+                    <Ionicons
+                      name="alert-circle-outline"
+                      size={22}
+                      color={(stats?.low_stock_alerts ?? 0) > 0 ? Colors.error : Colors.success}
+                    />
                     <Text style={styles.adminStatLabel}>Low Stock</Text>
                     <Text style={styles.adminStatSub}>
                       {stats?.low_stock_alerts ?? 0} alert{(stats?.low_stock_alerts ?? 0) !== 1 ? 's' : ''}
                     </Text>
                   </TouchableOpacity>
                 </View>
-              </>
-            )}
-
-            {/* Recent Orders */}
-            {stats?.recent_orders && stats.recent_orders.length > 0 && (
-              <>
-                <View style={styles.sectionHeader}>
-                  <Text style={styles.sectionTitle}>Recent Orders</Text>
-                  <TouchableOpacity onPress={() => router.push('/(tabs)/orders')}>
-                    <Text style={styles.seeAll}>See All</Text>
-                  </TouchableOpacity>
-                </View>
-                {stats.recent_orders.slice(0, 5).map((order) => (
-                  <OrderCard
-                    key={order.id}
-                    order={order}
-                    onPress={() => router.push(`/(tabs)/orders/${order.id}` as any)}
-                  />
-                ))}
               </>
             )}
           </>
@@ -241,10 +269,7 @@ export default function DashboardScreen() {
 }
 
 const styles = StyleSheet.create({
-  safe: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
+  safe: { flex: 1, backgroundColor: Colors.background },
   header: {
     backgroundColor: Colors.primary,
     paddingHorizontal: Spacing.lg,
@@ -254,22 +279,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  greeting: {
-    fontSize: FontSize.sm,
-    color: 'rgba(255,255,255,0.75)',
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm,
-    flexWrap: 'wrap',
-  },
-  name: {
-    fontSize: FontSize.xl,
-    fontWeight: '700',
-    color: Colors.white,
-  },
-  adminBadge: {
+  greeting: { fontSize: FontSize.sm, color: 'rgba(255,255,255,0.75)' },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flexWrap: 'wrap' },
+  name: { fontSize: FontSize.xl, fontWeight: '700', color: Colors.white, flexShrink: 1 },
+  roleBadge: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
@@ -280,24 +293,30 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(247,184,1,0.4)',
   },
-  adminBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: Colors.gold,
+  salesBadge: {
+    backgroundColor: 'rgba(255,255,255,0.15)',
+    borderColor: 'rgba(255,255,255,0.3)',
   },
-  department: {
-    fontSize: FontSize.xs,
-    color: 'rgba(255,255,255,0.6)',
-    marginTop: 2,
-  },
-  headerActions: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
+  roleBadgeText: { fontSize: 10, fontWeight: '700', color: Colors.gold },
+  department: { fontSize: FontSize.xs, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
+  headerActions: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'center' },
+  headerBtn: { padding: Spacing.xs, position: 'relative' },
+  // Live notification badge on bell icon
+  notifBadge: {
+    position: 'absolute',
+    top: 2,
+    right: 2,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: Colors.error,
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+    borderWidth: 1.5,
+    borderColor: Colors.primary,
   },
-  headerBtn: {
-    padding: Spacing.xs,
-  },
+  notifBadgeText: { fontSize: 9, fontWeight: '800', color: Colors.white },
   avatarCircle: {
     width: 36,
     height: 36,
@@ -308,23 +327,23 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: 'rgba(255,255,255,0.35)',
   },
-  avatarText: {
-    fontSize: FontSize.md,
-    fontWeight: '800',
-    color: Colors.white,
-  },
-  scroll: {
-    flex: 1,
-  },
-  content: {
+  avatarText: { fontSize: FontSize.md, fontWeight: '800', color: Colors.white },
+  scroll: { flex: 1 },
+  content: { padding: Spacing.md, paddingBottom: Spacing.xxl },
+  date: { fontSize: FontSize.sm, color: Colors.textSecondary, marginBottom: Spacing.md },
+  // Error retry banner
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    backgroundColor: Colors.errorSurface,
+    borderRadius: BorderRadius.md,
     padding: Spacing.md,
-    paddingBottom: Spacing.xxl,
-  },
-  date: {
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
     marginBottom: Spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.error + '40',
   },
+  errorBannerText: { flex: 1, fontSize: FontSize.sm, color: Colors.error, fontWeight: '500' },
   sectionTitle: {
     fontSize: FontSize.lg,
     fontWeight: '700',
@@ -339,32 +358,14 @@ const styles = StyleSheet.create({
     marginTop: Spacing.md,
     marginBottom: Spacing.md,
   },
-  seeAll: {
-    fontSize: FontSize.sm,
-    color: Colors.primary,
-    fontWeight: '600',
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    gap: Spacing.sm,
-    marginBottom: Spacing.sm,
-  },
-  quickActions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: Spacing.md,
-  },
-  quickActionBtn: {
-    flex: 1,
-    alignItems: 'center',
-    gap: Spacing.xs,
-    padding: Spacing.sm,
-  },
+  seeAll: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: '600' },
+  statsGrid: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.sm },
+  quickActions: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: Spacing.md },
+  quickActionBtn: { flex: 1, alignItems: 'center', gap: Spacing.xs, padding: Spacing.sm },
   quickActionIcon: {
     width: 52,
     height: 52,
     borderRadius: 16,
-    backgroundColor: Colors.primarySurface,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -383,11 +384,7 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     borderRadius: BorderRadius.full,
   },
-  adminPillText: {
-    fontSize: FontSize.xs,
-    fontWeight: '700',
-    color: Colors.warning,
-  },
+  adminPillText: { fontSize: FontSize.xs, fontWeight: '700', color: Colors.warning },
   adminStatCard: {
     flex: 1,
     backgroundColor: Colors.white,
@@ -396,14 +393,11 @@ const styles = StyleSheet.create({
     gap: Spacing.xs,
     ...Shadow.sm,
   },
-  adminStatLabel: {
-    fontSize: FontSize.sm,
-    fontWeight: '700',
-    color: Colors.textPrimary,
-    marginTop: Spacing.xs,
+  adminStatCardAlert: {
+    borderWidth: 1,
+    borderColor: Colors.error + '40',
+    backgroundColor: Colors.errorSurface,
   },
-  adminStatSub: {
-    fontSize: FontSize.xs,
-    color: Colors.textSecondary,
-  },
+  adminStatLabel: { fontSize: FontSize.sm, fontWeight: '700', color: Colors.textPrimary, marginTop: Spacing.xs },
+  adminStatSub: { fontSize: FontSize.xs, color: Colors.textSecondary },
 });
