@@ -1,17 +1,14 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import * as SecureStore from 'expo-secure-store';
+import { router } from 'expo-router';
+import Toast from 'react-native-toast-message';
 
-// In development (Expo Go), connect to the local Django dev server running on your PC.
-// In production (APK build), connect to the live server.
-// Run the dev server with: python manage.py runserver 0.0.0.0:8000
 export const BASE_URL = 'https://backup.mcdave.co.ke/api/';
 
 const apiClient = axios.create({
   baseURL: BASE_URL,
   timeout: 30000,
   headers: {
-       // These headers help Imunify360 recognise the request
-    // as a legitimate mobile app, not a bot
     'User-Agent': 'ZeliaOMS-Android/1.0 (Mobile; React-Native)',
     'Accept': 'application/json',
     'Accept-Language': 'en-US,en;q=0.9',
@@ -22,10 +19,37 @@ const apiClient = axios.create({
   },
 });
 
-// Simple flag so we only spam logs in dev
 const API_DEBUG = __DEV__;
 
-// Attach token to every request
+// Debounce the 401 handler so a burst of parallel requests only triggers one logout
+let sessionExpiredHandled = false;
+const handleSessionExpired = async () => {
+  if (sessionExpiredHandled) return;
+  sessionExpiredHandled = true;
+
+  // Clear stored credentials
+  await Promise.all([
+    SecureStore.deleteItemAsync('auth_token').catch(() => {}),
+    SecureStore.deleteItemAsync('auth_user').catch(() => {}),
+  ]);
+
+  // Show user-facing message
+  Toast.show({
+    type: 'error',
+    text1: 'Session Expired',
+    text2: 'Please log in again to continue.',
+    visibilityTime: 4000,
+  });
+
+  // Navigate to login — small delay so toast renders first
+  setTimeout(() => {
+    sessionExpiredHandled = false; // reset for next session
+    router.replace('/login');
+  }, 500);
+};
+
+// ─── Request interceptor — attach token ──────────────────────────────────────
+
 apiClient.interceptors.request.use(
   async (config: InternalAxiosRequestConfig) => {
     const token = await SecureStore.getItemAsync('auth_token');
@@ -35,7 +59,6 @@ apiClient.interceptors.request.use(
     if (API_DEBUG) {
       const method = (config.method || 'get').toUpperCase();
       const url = `${config.baseURL || ''}${config.url || ''}`;
-      // Avoid logging huge bodies; this is just for visibility during debugging
       console.log('[API REQUEST]', method, url, {
         params: config.params,
         hasBody: !!config.data,
@@ -46,7 +69,8 @@ apiClient.interceptors.request.use(
   (error) => Promise.reject(error),
 );
 
-// Normalize error responses — extract readable message from Django DRF errors
+// ─── Response interceptor — handle errors ────────────────────────────────────
+
 apiClient.interceptors.response.use(
   (response) => {
     if (API_DEBUG) {
@@ -54,7 +78,6 @@ apiClient.interceptors.response.use(
       const url = `${response.config.baseURL || ''}${response.config.url || ''}`;
       console.log('[API RESPONSE]', method, url, {
         status: response.status,
-        // Show a small slice of data to avoid huge logs
         dataSample:
           typeof response.data === 'string'
             ? response.data.slice(0, 200)
@@ -63,7 +86,7 @@ apiClient.interceptors.response.use(
     }
     return response;
   },
-  (error: AxiosError<Record<string, unknown>>) => {
+  async (error: AxiosError<Record<string, unknown>>) => {
     if (API_DEBUG) {
       const cfg = error.config || {};
       const method = (cfg.method || 'get').toUpperCase();
@@ -76,17 +99,22 @@ apiClient.interceptors.response.use(
       });
     }
 
+    // ── 401: session expired or invalid token ─────────────────────────────
     if (error.response?.status === 401) {
-      SecureStore.deleteItemAsync('auth_token');
+      await handleSessionExpired();
+      return Promise.reject(new Error('Session expired. Please log in again.'));
     }
 
+    // ── Structured DRF error response ─────────────────────────────────────
     if (error.response?.data) {
       const d = error.response.data;
       const msg =
         (d.detail as string) ||
         (d.error as string) ||
         (d.message as string) ||
-        (Array.isArray(d.non_field_errors) ? (d.non_field_errors as string[])[0] : undefined) ||
+        (Array.isArray(d.non_field_errors)
+          ? (d.non_field_errors as string[])[0]
+          : undefined) ||
         extractFirstFieldError(d) ||
         `Server error (${error.response.status})`;
       const enhanced = new Error(msg) as Error & { status: number; data: unknown };
@@ -95,12 +123,13 @@ apiClient.interceptors.response.use(
       return Promise.reject(enhanced);
     }
 
+    // ── Timeout ────────────────────────────────────────────────────────────
     if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
       return Promise.reject(new Error('Request timed out. Check your connection.'));
     }
 
+    // ── No response (network/CORS/DNS) ─────────────────────────────────────
     if (!error.response) {
-      // ERR_NETWORK / CORS / DNS / connection refused — browser never got a response
       const hint =
         error.code === 'ERR_NETWORK'
           ? ' Often caused by CORS or firewall blocking the request.'

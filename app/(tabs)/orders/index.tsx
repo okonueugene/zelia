@@ -8,14 +8,12 @@ import {
   TextInput,
   RefreshControl,
   ActivityIndicator,
+  ScrollView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import {
-  useInfiniteQuery,
-  useQueryClient,
-} from '@tanstack/react-query';
+import { useInfiniteQuery } from '@tanstack/react-query';
 import { Ionicons } from '@expo/vector-icons';
 import { getOrders } from '../../../src/api/orders';
 import { OrderCard } from '../../../src/components/OrderCard';
@@ -24,27 +22,42 @@ import { EmptyState } from '../../../src/components/ui/EmptyState';
 import { Colors, FontSize, Spacing, BorderRadius } from '../../../src/constants/colors';
 import { useDebouncedValue } from '../../../src/hooks/useDebouncedValue';
 import { normalizeSearchQuery } from '../../../src/utils/search';
-import type { OrderPaidStatus, PaginatedResponse } from '../../../src/types';
+import type { OrderPaidStatus, OrderDeliveryStatus } from '../../../src/types';
 
-const STATUS_FILTERS: { label: string; value: OrderPaidStatus | '' }[] = [
+// ─── Filter definitions ───────────────────────────────────────────────────────
+
+const PAID_FILTERS: { label: string; value: OrderPaidStatus | '' }[] = [
   { label: 'All', value: '' },
-  { label: 'Pending', value: 'pending' },
+  { label: 'Unpaid', value: 'pending' },
   { label: 'Partial', value: 'partially_paid' },
   { label: 'Paid', value: 'completed' },
+  { label: 'Cancelled', value: 'cancelled' },
 ];
+
+const DELIVERY_FILTERS: { label: string; value: OrderDeliveryStatus | '' }[] = [
+  { label: 'All', value: '' },
+  { label: 'Pending', value: 'pending' },
+  { label: 'Delivered', value: 'completed' },
+  { label: 'Returned', value: 'returned' },
+  { label: 'Cancelled', value: 'cancelled' },
+];
+
+// ─── Component ────────────────────────────────────────────────────────────────
 
 export default function OrdersScreen() {
   const router = useRouter();
-  const queryClient = useQueryClient();
   const flatListRef = useRef<FlatList>(null);
 
   const [search, setSearch, debouncedSearch] = useDebouncedValue('', 400);
-  const [statusFilter, setStatusFilter] = useState<OrderPaidStatus | ''>('');
+  const [paidFilter, setPaidFilter] = useState<OrderPaidStatus | ''>('');
+  const [deliveryFilter, setDeliveryFilter] = useState<OrderDeliveryStatus | ''>('');
 
   const searchParam = useMemo(
     () => (debouncedSearch ? normalizeSearchQuery(debouncedSearch) : ''),
     [debouncedSearch],
   );
+
+  // ─── Data fetching ──────────────────────────────────────────────────────────
 
   const {
     data,
@@ -55,69 +68,74 @@ export default function OrdersScreen() {
     refetch,
     isRefetching,
   } = useInfiniteQuery({
-    queryKey: ['orders', statusFilter, searchParam],
+    queryKey: ['orders', paidFilter, deliveryFilter, searchParam],
     queryFn: async ({ pageParam = 1 }) => {
-      const paramsSent = {
-        paid_status: statusFilter || undefined,
+      const res = await getOrders({
+        paid_status: paidFilter || undefined,
+        delivery_status: deliveryFilter || undefined,
         search: searchParam || undefined,
         page: pageParam,
-      };
-      console.log('→ API params:', paramsSent);
-
-      const res = await getOrders(paramsSent);
-
-      console.log('← API response summary:', {
-        count: res.count,
-        next: !!res.next,
-        resultsLength: res.results?.length ?? 0,
       });
-
       return res;
     },
     initialPageParam: 1,
     getNextPageParam: (lastPage) => {
       if (!lastPage.next) return undefined;
-      const url = new URL(lastPage.next);
-      const pageStr = url.searchParams.get('page');
-      return pageStr ? Number(pageStr) : undefined;
+      try {
+        const url = new URL(lastPage.next);
+        const pageStr = url.searchParams.get('page');
+        return pageStr ? Number(pageStr) : undefined;
+      } catch {
+        const match = lastPage.next.match(/[?&]page=(\d+)/);
+        return match ? Number(match[1]) : undefined;
+      }
     },
     staleTime: 2 * 60 * 1000,
   });
 
-  // All loaded orders (across all pages)
+  // ─── Derived state ──────────────────────────────────────────────────────────
+
   const allLoadedOrders = useMemo(
     () => data?.pages.flatMap((page) => page.results) ?? [],
     [data],
   );
 
-  // Apply client-side filtering + search on top of loaded data
   const displayedOrders = useMemo(() => {
     let filtered = [...allLoadedOrders];
 
-    if (statusFilter) {
-      filtered = filtered.filter((order) => order.paid_status === statusFilter);
+    if (paidFilter) {
+      filtered = filtered.filter((o) => o.paid_status === paidFilter);
+    }
+
+    if (deliveryFilter) {
+      filtered = filtered.filter((o) => o.delivery_status === deliveryFilter);
     }
 
     if (searchParam) {
       const term = searchParam.toLowerCase();
       filtered = filtered.filter(
-        (order) =>
-          String(order.id).includes(term) ||
-          (order.customer_name ?? '').toLowerCase().includes(term) ||
-          (order.phone ?? '').toLowerCase().includes(term) ||
-          (order.customer_phone ?? '').toLowerCase().includes(term),
+        (o) =>
+          String(o.id).includes(term) ||
+          (o.customer_name ?? '').toLowerCase().includes(term) ||
+          (o.phone ?? '').toLowerCase().includes(term) ||
+          (o.customer_phone ?? '').toLowerCase().includes(term),
       );
     }
 
     return filtered;
-  }, [allLoadedOrders, statusFilter, searchParam]);
+  }, [allLoadedOrders, paidFilter, deliveryFilter, searchParam]);
 
-  // Scroll to top when filters/search change or list refreshes
+  const isFiltering = !!paidFilter || !!deliveryFilter || !!searchParam;
+  const totalCount = data?.pages[0]?.count ?? 0;
+  const hasActiveFilters = !!paidFilter || !!deliveryFilter || !!searchParam;
+
+  // ─── Effects ────────────────────────────────────────────────────────────────
+
   React.useEffect(() => {
-    if (displayedOrders.length > 0 && !isLoading) {
+    if (!isLoading) {
       flatListRef.current?.scrollToOffset({ offset: 0, animated: true });
     }
-  }, [displayedOrders.length, isLoading, statusFilter, searchParam]);
+  }, [paidFilter, deliveryFilter, searchParam]);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -125,7 +143,7 @@ export default function OrdersScreen() {
     }, [refetch]),
   );
 
-  const isFiltering = !!statusFilter || !!searchParam;
+  // ─── Handlers ───────────────────────────────────────────────────────────────
 
   const loadMore = () => {
     if (hasNextPage && !isFetchingNextPage && !isFiltering) {
@@ -133,7 +151,13 @@ export default function OrdersScreen() {
     }
   };
 
-  const totalCount = data?.pages[0]?.count ?? 0;
+  const clearAllFilters = () => {
+    setPaidFilter('');
+    setDeliveryFilter('');
+    setSearch('');
+  };
+
+  // ─── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -150,7 +174,7 @@ export default function OrdersScreen() {
 
       {/* Search */}
       <View style={styles.searchWrap}>
-        <Ionicons name="search-outline" size={18} color={Colors.gray400} style={styles.searchIcon} />
+        <Ionicons name="search-outline" size={18} color={Colors.gray400} />
         <TextInput
           style={styles.search}
           placeholder="Search by customer, ID, phone..."
@@ -158,38 +182,75 @@ export default function OrdersScreen() {
           value={search}
           onChangeText={setSearch}
           autoCapitalize="none"
+          returnKeyType="search"
         />
         {search.length > 0 && (
-          <TouchableOpacity onPress={() => setSearch('')}>
+          <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Ionicons name="close-circle" size={18} color={Colors.gray400} />
           </TouchableOpacity>
         )}
       </View>
 
-      {/* Status Filter Pills */}
-      <View style={styles.filters}>
-        {STATUS_FILTERS.map((f) => (
-          <TouchableOpacity
-            key={f.value}
-            onPress={() => setStatusFilter(f.value)}
-            style={[styles.filterPill, statusFilter === f.value && styles.filterPillActive]}
-          >
-            <Text
-              style={[styles.filterText, statusFilter === f.value && styles.filterTextActive]}
+      {/* Filters */}
+      <View style={styles.filtersContainer}>
+        {/* Row 1: Payment status */}
+        <Text style={styles.filterRowLabel}>Payment</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+        >
+          {PAID_FILTERS.map((f) => (
+            <TouchableOpacity
+              key={`paid-${f.value}`}
+              onPress={() => setPaidFilter(f.value)}
+              style={[styles.filterPill, paidFilter === f.value && styles.filterPillActive]}
+              activeOpacity={0.7}
             >
-              {f.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
+              <Text style={[styles.filterText, paidFilter === f.value && styles.filterTextActive]}>
+                {f.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* Row 2: Delivery status */}
+        <Text style={styles.filterRowLabel}>Delivery</Text>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+        >
+          {DELIVERY_FILTERS.map((f) => (
+            <TouchableOpacity
+              key={`delivery-${f.value}`}
+              onPress={() => setDeliveryFilter(f.value)}
+              style={[styles.filterPill, deliveryFilter === f.value && styles.filterPillActive]}
+              activeOpacity={0.7}
+            >
+              <Text style={[styles.filterText, deliveryFilter === f.value && styles.filterTextActive]}>
+                {f.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
       </View>
 
-      {/* Count – shows filtered count vs total */}
-      {!isLoading && (
-        <Text style={styles.count}>
-          {displayedOrders.length} order{displayedOrders.length !== 1 ? 's' : ''}
-          {totalCount > 0 ? ` of ${totalCount} total` : ''}
-        </Text>
-      )}
+      {/* Count + Clear filters */}
+      <View style={styles.countRow}>
+        {!isLoading && (
+          <Text style={styles.count}>
+            {displayedOrders.length} order{displayedOrders.length !== 1 ? 's' : ''}
+            {totalCount > 0 ? ` of ${totalCount} total` : ''}
+          </Text>
+        )}
+        {hasActiveFilters && (
+          <TouchableOpacity onPress={clearAllFilters} style={styles.clearBtn}>
+            <Ionicons name="close-circle" size={13} color={Colors.primary} />
+            <Text style={styles.clearBtnText}>Clear filters</Text>
+          </TouchableOpacity>
+        )}
+      </View>
 
       {/* List */}
       {isLoading ? (
@@ -211,12 +272,16 @@ export default function OrdersScreen() {
               icon="receipt-outline"
               title="No Orders Found"
               description={
-                searchParam || statusFilter
+                hasActiveFilters
                   ? 'No orders match your current filters or search.'
                   : 'No orders yet. Create your first one!'
               }
-              actionLabel="Create Order"
-              onAction={() => router.push('/(tabs)/orders/create' as any)}
+              actionLabel={hasActiveFilters ? 'Clear Filters' : 'Create Order'}
+              onAction={
+                hasActiveFilters
+                  ? clearAllFilters
+                  : () => router.push('/(tabs)/orders/create' as any)
+              }
             />
           }
           ListFooterComponent={
@@ -243,6 +308,8 @@ export default function OrdersScreen() {
     </SafeAreaView>
   );
 }
+
+// ─── Styles ───────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   safe: {
@@ -284,16 +351,31 @@ const styles = StyleSheet.create({
     height: 44,
     gap: Spacing.sm,
   },
-  searchIcon: {},
   search: {
     flex: 1,
     fontSize: FontSize.md,
     color: Colors.textPrimary,
   },
-  filters: {
-    flexDirection: 'row',
+  filtersContainer: {
+    backgroundColor: Colors.white,
+    marginTop: Spacing.sm,
+    paddingTop: Spacing.sm,
+    paddingBottom: Spacing.xs,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.gray100,
+  },
+  filterRowLabel: {
+    fontSize: FontSize.xs,
+    fontWeight: '700',
+    color: Colors.textSecondary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
     paddingHorizontal: Spacing.md,
-    marginTop: Spacing.md,
+    marginBottom: 4,
+  },
+  filterRow: {
+    paddingHorizontal: Spacing.md,
+    paddingBottom: Spacing.sm,
     gap: Spacing.sm,
   },
   filterPill: {
@@ -317,12 +399,28 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontWeight: '700',
   },
-  count: {
-    fontSize: FontSize.sm,
-    color: Colors.textSecondary,
+  countRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
     paddingHorizontal: Spacing.lg,
     marginTop: Spacing.sm,
     marginBottom: Spacing.xs,
+    minHeight: 24,
+  },
+  count: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+  },
+  clearBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  clearBtnText: {
+    fontSize: FontSize.sm,
+    color: Colors.primary,
+    fontWeight: '600',
   },
   list: {
     padding: Spacing.md,
