@@ -61,34 +61,48 @@ export async function deleteOrder(id: number): Promise<void> {
 // GET /api/orders/{id}/download_receipt/ - Download receipt PDF to device and share
 export async function downloadReceiptToDevice(id: number): Promise<void> {
   const FileSystem = require('expo-file-system/legacy');
+  const SecureStore = require('expo-secure-store');
   const Sharing = require('expo-sharing');
 
-  // Use apiClient so the auth interceptor handles the token automatically
-  const response = await apiClient.get(`orders/${id}/download_receipt/`, {
-    responseType: 'arraybuffer',
-  });
+  console.log(`[Receipt] Step 1: Starting download for order #${id}`);
 
-  // Convert ArrayBuffer to base64
-  const uint8 = new Uint8Array(response.data as ArrayBuffer);
-  let binary = '';
-  for (let i = 0; i < uint8.length; i++) {
-    binary += String.fromCharCode(uint8[i]);
+  const token: string | null = await SecureStore.getItemAsync('auth_token');
+  if (!token) throw new Error('Not authenticated');
+  console.log('[Receipt] Step 2: Token retrieved ✓');
+
+  const url = `${apiClient.defaults.baseURL}orders/${id}/download_receipt/`;
+  const filePath = `${FileSystem.cacheDirectory}order-${id}-receipt.pdf`;
+  console.log(`[Receipt] Step 3: URL = ${url}`);
+
+  const result = await FileSystem.downloadAsync(url, filePath, {
+    headers: {
+      Authorization: `Token ${token}`,
+      Accept: '*/*',
+    },
+  });
+  console.log(`[Receipt] Step 4: status=${result.status}, headers=${JSON.stringify(result.headers)}`);
+
+  if (result.status !== 200) {
+    try {
+      const body = await FileSystem.readAsStringAsync(result.uri, { length: 500 });
+      console.error(`[Receipt] Step 4 FAIL: body preview = ${body}`);
+    } catch {}
+    throw new Error(`Receipt download failed (HTTP ${result.status})`);
   }
-  const base64 = btoa(binary);
 
-  const filePath = `${FileSystem.cacheDirectory}order-${id}.pdf`;
-  await FileSystem.writeAsStringAsync(filePath, base64, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
+  const fileInfo = await FileSystem.getInfoAsync(result.uri);
+  console.log(`[Receipt] Step 5: file size = ${(fileInfo as any).size} bytes`);
+  if (!(fileInfo as any).exists || (fileInfo as any).size === 0) {
+    throw new Error('Downloaded file is empty — server may have returned an error');
+  }
 
   const canShare = await Sharing.isAvailableAsync();
-  if (canShare) {
-    await Sharing.shareAsync(filePath, {
-      mimeType: 'application/pdf',
-      dialogTitle: `Receipt – Order #${id}`,
-      UTI: 'com.adobe.pdf',
-    });
-  } else {
-    throw new Error('Sharing is not available on this device');
-  }
+  if (!canShare) throw new Error('Sharing is not available on this device');
+
+  await Sharing.shareAsync(result.uri, {
+    mimeType: 'application/pdf',
+    dialogTitle: `Receipt – Order #${id}`,
+    UTI: 'com.adobe.pdf',
+  });
+  console.log('[Receipt] Step 6: Share sheet opened ✓');
 }

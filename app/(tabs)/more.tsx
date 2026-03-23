@@ -59,8 +59,8 @@ export default function MoreScreen() {
   const { user, logout } = useAuthStore();
   const isAuthenticated = useAuthStore(selectIsAuthenticated);
   const queryClient = useQueryClient();
-  const unreadNotifications = useAppStore((s) => s.unreadNotifications ?? 0);
-  const unreadMessages = useAppStore((s) => s.unreadCount ?? 0);
+  // unreadCount is the numeric count; unreadNotifications is a Notification[] array — never render that directly
+  const unreadNotifCount = useAppStore((s) => s.unreadCount ?? 0);
 
   const [section, setSection] = useState<Section>('menu');
   const [messageText, setMessageText] = useState('');
@@ -97,6 +97,9 @@ export default function MoreScreen() {
     ...getCacheConfig('messages'),
     refetchInterval: section === 'messages' ? 15_000 : false, // faster poll when viewing
   });
+
+  // Derive message unread count from cached query data (0 when not yet loaded)
+  const unreadMsgCount = (messagesData?.results ?? []).filter((m: any) => !m.is_read).length;
 
   const { data: notificationsData, isLoading: notifsLoading } = useQuery({
     queryKey: ['notifications'],
@@ -229,8 +232,8 @@ export default function MoreScreen() {
 
   if (section === 'menu') {
     const menuItems = [
-      { icon: 'chatbubbles-outline', label: 'Internal Messages', section: 'messages' as Section, count: unreadMessages || null, color: Colors.primary },
-      { icon: 'notifications-outline', label: 'Notifications', section: 'notifications' as Section, count: unreadNotifications || null, color: Colors.warning },
+      { icon: 'chatbubbles-outline', label: 'Internal Messages', section: 'messages' as Section, count: unreadMsgCount > 0 ? unreadMsgCount : null, color: Colors.primary },
+      { icon: 'notifications-outline', label: 'Notifications', section: 'notifications' as Section, count: unreadNotifCount > 0 ? unreadNotifCount : null, color: Colors.warning },
       { icon: 'star-outline', label: 'Customer Feedback', section: 'feedback' as Section, count: null, color: Colors.secondary },
       { icon: 'person-outline', label: 'My Profile', section: 'profile' as Section, count: null, color: Colors.gray600 },
     ];
