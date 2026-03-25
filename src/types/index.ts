@@ -44,7 +44,7 @@ export interface Category {
 
 // ==================== Product ====================
 export type CustomerCategory = 'factory' | 'distributor' | 'wholesale' | 'Towns' | 'Retail customer';
-export type StoreLocation = 'mcdave' | 'kisii' | 'offshore';
+export type StoreLocation = 'mcdave' | 'mombasa' | 'offshore';
 
 export interface Product {
   id: number;

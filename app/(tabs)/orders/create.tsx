@@ -77,7 +77,7 @@ const CATEGORIES: { label: string; value: CustomerCategory }[] = [
 
 const STORES: { label: string; value: StoreLocation; icon: string }[] = [
   { label: "McDave", value: "mcdave", icon: "business-outline" },
-  { label: "Kisii", value: "kisii", icon: "storefront-outline" },
+  { label: "Mombasa", value: "mombasa", icon: "storefront-outline" },
   { label: "Offshore", value: "offshore", icon: "boat-outline" },
 ];
 
@@ -89,7 +89,7 @@ const fmt = (n: number) =>
 
 const stockKey = (p: ProductListItem, store: StoreLocation): number => {
   if (store === "mcdave") return p.mcdave_stock ?? 0;
-  if (store === "kisii") return p.kisii_stock ?? 0;
+  if (store === "mombasa") return p.kisii_stock ?? 0;
   return p.offshore_stock ?? 0;
 };
 

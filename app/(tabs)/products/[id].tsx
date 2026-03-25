@@ -117,7 +117,7 @@ function resolveImageUri(url: string | null | undefined): string | null {
   if (url.startsWith('http://')) {
     return __DEV__ ? url : 'https://' + url.slice(7);
   }
-  return `https://zeliaoms.mcdave.co.ke${url.startsWith('/') ? '' : '/'}${url}`;
+  return `https://backup.mcdave.co.ke${url.startsWith('/') ? '' : '/'}${url}`;
 }
 
 // ── Main screen ───────────────────────────────────────────────────────────────
@@ -183,7 +183,7 @@ export default function ProductDetailScreen() {
 
   const stockRows = [
     { label: 'McDave — Nairobi', value: mcdaveStock,   icon: 'home-outline' as const },
-    { label: 'Kisii',            value: kisiiStock,    icon: 'water-outline' as const },
+    { label: 'Mombasa',            value: kisiiStock,    icon: 'water-outline' as const },
     { label: 'Offshore',         value: offshoreStock, icon: 'airplane-outline' as const },
   ];
 

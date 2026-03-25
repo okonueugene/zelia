@@ -3,7 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
 import Toast from 'react-native-toast-message';
 
-export const BASE_URL = 'https://zeliaoms.mcdave.co.ke/api/';
+export const BASE_URL = 'https://backup.mcdave.co.ke/api/';
 
 const apiClient = axios.create({
   baseURL: BASE_URL,
