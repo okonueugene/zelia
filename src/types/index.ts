@@ -44,13 +44,14 @@ export interface Category {
 
 // ==================== Product ====================
 export type CustomerCategory = 'factory' | 'distributor' | 'wholesale' | 'Towns' | 'Retail customer';
-export type StoreLocation = 'mcdave' | 'mombasa' | 'offshore';
+/** Store keys as used by the backend (kisii = Mombasa store) */
+export type StoreLocation = 'mcdave' | 'kisii' | 'offshore';
 
 export interface Product {
   id: number;
   name: string;
-  description: string;
-  barcode: string;
+  description: string | null;
+  barcode: string | null;
   category: number;
   category_name?: string;
   status: 'available' | 'not_available' | 'limited' | 'offer' | string;
@@ -61,6 +62,8 @@ export interface Product {
   wholesale_price: string;
   offshore_price: string;
   retail_price: string;
+  /** Per-category price map returned by the detail serializer */
+  category_prices?: Record<string, number>;
   mcdave_stock: number;
   kisii_stock: number;
   offshore_stock: number;
@@ -101,15 +104,18 @@ export interface ProductListItem {
 export interface Customer {
   id: number;
   first_name: string;
-  last_name: string;
-  full_name?: string;
-  phone_number: string;
-  email: string;
-  address: string;
+  last_name: string | null;
+  phone_number: string | null;
+  formatted_phone?: string | null;
+  email: string | null;
+  address: string | null;
   default_category: CustomerCategory;
+  customer_category_fk?: number | null;
+  category_name?: string;
   sales_person: number | null;
-  sales_person_name?: string;
+  sales_person_name?: string | null;
   created_at: string;
+  updated_at: string;
 }
 
 // ==================== Order ====================
@@ -122,10 +128,12 @@ export interface OrderItem {
   order: number;
   product: number;
   product_name?: string;
+  product_image?: string;
   quantity: number;
   unit_price: string;
   variance: string;
   line_total: string;
+  original_quantity: number;
 }
 
 export interface Order {
@@ -137,8 +145,8 @@ export interface Order {
   sales_person_name?: string;
   store: StoreLocation;
   customer_category: CustomerCategory;
-  address: string;
-  phone: string;
+  address: string | null;
+  phone: string | null;
   vat_variation: VatVariation;
   paid_status: OrderPaidStatus;
   delivery_status: OrderDeliveryStatus;
@@ -146,12 +154,16 @@ export interface Order {
   total_amount: string;
   amount_paid: string;
   delivery_fee: string;
-  balance?: string;
+  balance?: number;
   latitude: string | null;
   longitude: string | null;
-  location_address: string;
+  location_address: string | null;
+  notes?: string | null;
+  quote?: number | null;
   created_at: string;
-  items?: OrderItem[];
+  updated_at: string;
+  /** Nested items returned by the API (key is order_items, not items) */
+  order_items?: OrderItem[];
 }
 
 export interface CreateOrderPayload {
@@ -181,11 +193,14 @@ export type PaymentMethod = 'cash' | 'mpesa' | 'cheque' | 'bank_transfer' | 'bun
 export interface Payment {
   id: number;
   order: number;
+  order_id?: number;
+  order_number?: string;
   amount: string;
   payment_method: PaymentMethod;
   payment_date: string;
-  reference_number: string;
-  notes: string;
+  reference_number: string | null;
+  notes: string | null;
+  recorded_by?: number | null;
   recorded_by_name?: string;
   created_at: string;
 }
@@ -233,11 +248,16 @@ export interface StockMovement {
   product: number;
   product_name?: string;
   store: StoreLocation;
-  quantity_change: number;
-  movement_type: 'in' | 'out' | 'adjustment' | 'transfer';
-  reference: string;
-  timestamp: string;
-  created_by_name?: string;
+  /** Signed quantity change; positive = stock added */
+  quantity: number;
+  movement_type: 'in' | 'out' | 'adjustment' | 'transfer_in' | 'transfer_out' | 'return' | 'damage';
+  reference_number: string | null;
+  notes: string | null;
+  previous_stock: number;
+  new_stock: number;
+  order?: number | null;
+  recorded_by?: number | null;
+  created_at: string;
 }
 
 export interface StockTransfer {
@@ -247,6 +267,7 @@ export interface StockTransfer {
   transfer_date: string;
   status: 'pending' | 'completed' | 'cancelled';
   items?: StockTransferItem[];
+  created_by?: number | null;
   created_by_name?: string;
 }
 
@@ -263,9 +284,11 @@ export interface StockAdjustment {
   product: number;
   product_name?: string;
   store: StoreLocation;
-  quantity_change: number;
-  reason: string;
-  adjustment_date: string;
+  /** Signed adjustment; positive = stock added */
+  adjustment_quantity: number;
+  reason: string | null;
+  adjusted_by?: number | null;
+  created_at: string;
 }
 
 export interface StockAlert {
@@ -273,8 +296,11 @@ export interface StockAlert {
   product: number;
   product_name?: string;
   store: StoreLocation;
-  min_threshold: number;
-  alert_type: 'low_stock' | 'out_of_stock';
+  threshold: number;
+  current_stock: number;
+  alert_type: 'low_stock' | 'out_of_stock' | 'overstock';
+  status: 'active' | 'acknowledged' | 'resolved';
+  created_at: string;
 }
 
 // ==================== Feedback ====================
@@ -282,8 +308,11 @@ export type FeedbackType = 'quality' | 'pricing' | 'payments' | 'delivery_time';
 
 export interface CustomerFeedback {
   id: number;
-  customer: number;
-  customer_name?: string;
+  /** Nullable — walk-in customers may not have a Customer record */
+  customer: number | null;
+  customer_name?: string | null;
+  walkin_customer?: number | null;
+  salesperson?: number | null;
   shop_name: string;
   contact_person: string;
   exact_location: string;
@@ -292,8 +321,10 @@ export interface CustomerFeedback {
   rating: 1 | 2 | 3 | 4 | 5;
   comment: string;
   photo: string | null;
+  photo_url?: string | null;
   latitude: string | null;
   longitude: string | null;
+  created_by?: number | null;
   created_by_name?: string;
   created_at: string;
 }
@@ -303,11 +334,22 @@ export interface InternalMessage {
   id: number;
   sender: number;
   sender_name?: string;
-  sender_username?: string;
+  /** Nullable = broadcast message to all users */
   recipient: number | null;
-  recipient_name?: string;
+  recipient_name?: string | null;
   message: string;
+  message_type?: 'text' | 'image' | 'file' | 'location' | 'contact' | string;
   is_read: boolean;
+  /** URL to the media attachment if message_type != 'text' */
+  attachment?: string | null;
+  attachment_name?: string | null;
+  /** Location fields (when message_type == 'location') */
+  latitude?: string | null;
+  longitude?: string | null;
+  location_label?: string | null;
+  /** Contact fields (when message_type == 'contact') */
+  contact_name?: string | null;
+  contact_phone?: string | null;
   created_at: string;
 }
 
@@ -331,20 +373,30 @@ export interface BeatPlan {
   id: number;
   salesperson: number;
   salesperson_name?: string;
-  date: string;
+  /** e.g. "Monday" */
   day_of_week: string;
+  customer: number;
+  customer_name?: string;
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
   visits?: BeatVisit[];
 }
 
 export interface BeatVisit {
   id: number;
-  beat_plan: number;
+  /** References BeatPlan */
+  plan: number;
+  salesperson: number;
+  salesperson_name?: string;
   customer: number;
   customer_name?: string;
-  visited_at: string | null;
-  location: string;
-  notes: string;
-  status: 'planned' | 'visited' | 'skipped';
+  visit_date: string;
+  outcome: string | null;
+  notes: string | null;
+  latitude: string | null;
+  longitude: string | null;
+  created_at: string;
 }
 
 // ==================== Dashboard ====================
@@ -387,11 +439,21 @@ export interface DashboardStats {
 }
 
 // ==================== Quote ====================
+export type QuoteStatus = 'pending' | 'sent' | 'accepted' | 'rejected' | 'converted';
+
 export interface Quote {
   id: number;
   customer: number;
   customer_name?: string;
+  sales_person?: number | null;
+  sales_person_name?: string;
+  quote_date: string;
+  expiry_date: string | null;
+  status: QuoteStatus;
   total_amount: string;
+  customer_category: CustomerCategory;
+  vat_variation: VatVariation;
+  notes: string | null;
   created_at: string;
   items?: QuoteItem[];
 }
@@ -401,6 +463,7 @@ export interface QuoteItem {
   quote: number;
   product: number;
   product_name?: string;
+  product_image?: string;
   quantity: number;
   unit_price: string;
   variance: string;

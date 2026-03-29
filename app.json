@@ -4,11 +4,11 @@
     "slug": "zeliaoms",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/mipmap-xxxhdpi/ic_launcher_foreground.png",
+    "icon": "./assets/images/logo.png",
     "userInterfaceStyle": "light",
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/mipmap-xxxhdpi/ic_launcher_foreground.png",
+        "foregroundImage": "./assets/images/logo.png",
         "backgroundColor": "#2D8659"
       },
       "package": "ke.co.mcdave.zeliaoms",

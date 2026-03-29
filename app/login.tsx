@@ -28,7 +28,7 @@ import { saveLoginSession } from '../src/api/auth';
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { login, isLoading } = useAuthStore();
+  const { login } = useAuthStore();
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -65,7 +65,6 @@ export default function LoginScreen() {
   const saveLoginSessionData = async () => {
     if (!photoResult) return;
     try {
-      // Convert image URI to base64
       let photoBase64: string | undefined;
       try {
         const base64 = await FileSystem.readAsStringAsync(photoResult.uri, {
@@ -73,21 +72,24 @@ export default function LoginScreen() {
         });
         photoBase64 = base64;
       } catch {
-        // If conversion fails, still continue without the photo
+        // Photo conversion failed — continue without the photo
       }
-      
+
       await saveLoginSession({
-        latitude: photoResult.latitude ?? gpsCoords?.lat ?? undefined,
-        longitude: photoResult.longitude ?? gpsCoords?.lng ?? undefined,
+        latitude: photoResult.latitude ?? gpsCoords?.lat ?? null,
+        longitude: photoResult.longitude ?? gpsCoords?.lng ?? null,
         photo_base64: photoBase64,
-        timestamp: photoResult.timestamp,
       });
-    } catch {
-      // Non-fatal — session save failure should not block login
+    } catch (err) {
+      // Non-fatal — session auditing failure must never block login.
+      // If this keeps appearing, the backend needs to switch from
+      // str.encode('ascii') to str.encode('utf-8') in its session handler.
+      console.warn('[Login] Session save failed (non-fatal):', (err as Error)?.message);
     }
   };
 
   const handleLogin = async () => {
+    setErrors({}); // clear any stale validation errors from a prior attempt
     if (!validate()) return;
     setSubmitting(true);
     try {
@@ -95,7 +97,6 @@ export default function LoginScreen() {
       await login({ username: username.trim(), password });
       console.log('Login successful, saving session...');
       await saveLoginSessionData();
-      console.log('Session saved, navigating to tabs...');
       router.replace('/(tabs)');
     } catch (err) {
       const message = (err as Error).message ?? 'Login failed. Please try again.';
@@ -220,7 +221,7 @@ export default function LoginScreen() {
             <Button
               onPress={handleLogin}
               label="Sign In"
-              loading={submitting || isLoading}
+              loading={submitting}
               fullWidth
               size="lg"
               style={styles.loginBtn}

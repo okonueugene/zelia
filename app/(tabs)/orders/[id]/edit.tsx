@@ -28,9 +28,8 @@ import {
   getOrderItems,
   updateOrder,
   updateOrderItem,
-  addItemToOrder,
-  removeItemFromOrder,
-  recalculateOrder,
+  addOrderItem,
+  deleteOrderItem,
 } from '../../../../src/api/orders';
 import { getProducts } from '../../../../src/api/products';
 import { getCacheConfig } from '../../../../src/hooks/useCacheConfig';
@@ -221,12 +220,10 @@ React.useEffect(() => {
     }),
   });
 
-  // 2. Update single item (qty / price) + force totals recalc
+  // 2. Update single item (qty / price) — recalculation is automatic via model save
   const { mutate: saveItem, isPending: savingItem } = useMutation({
-    mutationFn: async ({ itemId, qty, price }: { itemId: number; qty: string; price: string }) => {
-      await updateOrderItem(itemId, { quantity: Number(qty), unit_price: price });
-      return recalculateOrder(orderId);
-    },
+    mutationFn: ({ itemId, qty, price }: { itemId: number; qty: string; price: string }) =>
+      updateOrderItem(itemId, { quantity: Number(qty), unit_price: price }),
     onSuccess: () => {
       invalidate();
       setExpandedItem(null);
@@ -238,7 +235,7 @@ React.useEffect(() => {
 
   // 3. Delete item
   const { mutate: removeItem, isPending: removingItem } = useMutation({
-    mutationFn: (itemId: number) => removeItemFromOrder(orderId, itemId),
+    mutationFn: (itemId: number) => deleteOrderItem(itemId),
     onSuccess: () => {
       invalidate();
       Toast.show({ type: 'success', text1: 'Item removed' });
@@ -246,14 +243,14 @@ React.useEffect(() => {
     onError: (e: Error) => Toast.show({ type: 'error', text1: 'Remove failed', text2: e.message }),
   });
 
-  // 4. Add new item
+  // 4. Add new item — posts to /api/order-items/ (the real endpoint)
   const { mutate: doAddItem, isPending: addingItem } = useMutation({
     mutationFn: () => {
       if (!addProductId) throw new Error('Select a product');
-      return addItemToOrder(orderId, {
-        product_id: addProductId,
+      return addOrderItem(orderId, {
+        product: addProductId,
         quantity: Number(addQty),
-        unit_price: addPrice || undefined,
+        unit_price: addPrice || '0',
       });
     },
     onSuccess: () => {
@@ -658,17 +655,17 @@ React.useEffect(() => {
             <View style={styles.field}>
               <Text style={styles.fieldLabel}>Store</Text>
               <View style={styles.vatToggle}>
-                {['mcdave', 'mombasa', 'offshore'].map((s) => (
+                {([['mcdave', 'McDave'], ['kisii', 'Mombasa'], ['offshore', 'Offshore']] as [string, string][]).map(([val, label]) => (
                   <TouchableOpacity
-                    key={s}
-                    style={[styles.vatOption, store === s && styles.vatOptionActive]}
-                    onPress={() => setStore(s)}
+                    key={val}
+                    style={[styles.vatOption, store === val && styles.vatOptionActive]}
+                    onPress={() => setStore(val)}
                   >
                     <Text style={[
                       styles.vatOptionText,
-                      store === s && styles.vatOptionTextActive,
+                      store === val && styles.vatOptionTextActive,
                     ]}>
-                      {s.charAt(0).toUpperCase() + s.slice(1)}
+                      {label}
                     </Text>
                   </TouchableOpacity>
                 ))}

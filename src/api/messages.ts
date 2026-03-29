@@ -35,9 +35,15 @@ export async function sendMessage(payload: {
   return data;
 }
 
-// POST /api/messages/mark_read/
-export async function markMessagesRead(ids: number[]): Promise<void> {
-  await apiClient.post('messages/mark_read/', { ids });
+// POST /api/messages/{id}/mark_read/ — mark a single message read
+export async function markMessageRead(id: number): Promise<InternalMessage> {
+  const { data } = await apiClient.post<InternalMessage>(`messages/${id}/mark_read/`);
+  return data;
+}
+
+// POST /api/messages/mark_all_read/ — convenience to mark every unread message
+export async function markAllMessagesRead(): Promise<void> {
+  await apiClient.post('messages/mark_all_read/');
 }
 
 // GET /api/messages/unread/ (count only)

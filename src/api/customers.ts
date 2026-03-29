@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { Customer, Order, PaginatedResponse } from '../types';
+import type { Customer, CustomerCategory, Order, PaginatedResponse } from '../types';
 
 // GET /api/customers/?search=&category=
 export async function getCustomers(params?: {
@@ -23,14 +23,24 @@ export async function getCustomerOrders(id: number): Promise<Order[]> {
   return data;
 }
 
+export interface CreateCustomerPayload {
+  first_name: string;
+  last_name?: string | null;
+  phone_number?: string | null;
+  email?: string | null;
+  address?: string | null;
+  default_category?: CustomerCategory;
+  sales_person?: number | null;
+}
+
 // POST /api/customers/
-export async function createCustomer(payload: Omit<Customer, 'id' | 'created_at'>): Promise<Customer> {
+export async function createCustomer(payload: CreateCustomerPayload): Promise<Customer> {
   const { data } = await apiClient.post<Customer>('customers/', payload);
   return data;
 }
 
 // PATCH /api/customers/{id}/
-export async function updateCustomer(id: number, payload: Partial<Customer>): Promise<Customer> {
+export async function updateCustomer(id: number, payload: Partial<CreateCustomerPayload>): Promise<Customer> {
   const { data } = await apiClient.patch<Customer>(`customers/${id}/`, payload);
   return data;
 }

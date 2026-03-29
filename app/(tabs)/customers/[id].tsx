@@ -41,7 +41,7 @@ export default function CustomerDetailScreen() {
     ? orders.reduce((sum, o) => sum + parseFloat(o.total_amount), 0)
     : 0;
 
-  const initials = `${customer.first_name.charAt(0)}${customer.last_name.charAt(0)}`.toUpperCase();
+  const initials = `${customer.first_name?.charAt(0) ?? '?'}${customer.last_name?.charAt(0) ?? ''}`.toUpperCase();
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -81,10 +81,11 @@ export default function CustomerDetailScreen() {
           <View style={styles.contactRow}>
             <TouchableOpacity
               style={styles.contactBtn}
-              onPress={() => Linking.openURL(`tel:${customer.phone_number}`)}
+              onPress={() => customer.phone_number && Linking.openURL(`tel:${customer.phone_number}`)}
+              disabled={!customer.phone_number}
             >
               <Ionicons name="call" size={20} color={Colors.success} />
-              <Text style={styles.contactText}>{customer.phone_number}</Text>
+              <Text style={styles.contactText}>{customer.phone_number ?? 'No phone'}</Text>
             </TouchableOpacity>
             {customer.email && (
               <TouchableOpacity

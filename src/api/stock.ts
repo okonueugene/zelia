@@ -73,7 +73,8 @@ export async function confirmStockTransfer(id: number): Promise<StockTransfer> {
 export async function createStockAdjustment(payload: {
   product: number;
   store: StoreLocation;
-  quantity_change: number;
+  /** Signed quantity — positive adds stock, negative removes it */
+  adjustment_quantity: number;
   reason: string;
 }): Promise<StockAdjustment> {
   const { data } = await apiClient.post<StockAdjustment>('api/stock/adjustments/', payload);

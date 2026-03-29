@@ -45,24 +45,6 @@ export async function createOrder(payload: CreateOrderPayload): Promise<Order> {
   return data;
 }
 
-// Preferred dedicated actions (use these instead of generic item CRUD when possible)
-export async function addItemToOrder(
-  orderId: number,
-  payload: { product_id: number; quantity: number; unit_price?: string; variance?: number },
-): Promise<Order> {
-  const { data } = await apiClient.post<Order>(`orders/${orderId}/add_item/`, payload);
-  return data;
-}
-
-export async function removeItemFromOrder(orderId: number, itemId: number): Promise<Order> {
-  const { data } = await apiClient.post<Order>(`orders/${orderId}/remove_item/`, { item_id: itemId });
-  return data;
-}
-
-export async function recalculateOrder(orderId: number): Promise<unknown> {
-  const { data } = await apiClient.post(`orders/${orderId}/recalculate/`);
-  return data;
-}
 
 // POST /api/orders/{id}/update_status/
 export async function updateOrderStatus(

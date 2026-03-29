@@ -2,8 +2,9 @@ import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import * as SecureStore from 'expo-secure-store';
 import { router } from 'expo-router';
 import Toast from 'react-native-toast-message';
+import { notifySessionExpired } from '../store/sessionSignal';
 
-export const BASE_URL = 'https://backup.mcdave.co.ke/api/';
+export const BASE_URL = 'https://zeliaoms.mcdave.co.ke/api/';
 
 const apiClient = axios.create({
   baseURL: BASE_URL,
@@ -27,13 +28,11 @@ const handleSessionExpired = async () => {
   if (sessionExpiredHandled) return;
   sessionExpiredHandled = true;
 
-  // Clear stored credentials
-  await Promise.all([
-    SecureStore.deleteItemAsync('auth_token').catch(() => {}),
-    SecureStore.deleteItemAsync('auth_user').catch(() => {}),
-  ]);
+  // Clear SecureStore + Zustand in-memory state via the session signal.
+  // This stops all auth-gated hooks (useNotifications, etc.) from continuing
+  // to poll and generating further 401s that would remount the login screen.
+  await notifySessionExpired();
 
-  // Show user-facing message
   Toast.show({
     type: 'error',
     text1: 'Session Expired',
@@ -43,9 +42,9 @@ const handleSessionExpired = async () => {
 
   // Navigate to login — small delay so toast renders first
   setTimeout(() => {
-    sessionExpiredHandled = false; // reset for next session
+    sessionExpiredHandled = false;
     router.replace('/login');
-  }, 500);
+  }, 400);
 };
 
 // ─── Request interceptor — attach token ──────────────────────────────────────
@@ -89,8 +88,8 @@ apiClient.interceptors.response.use(
   async (error: AxiosError<Record<string, unknown>>) => {
     if (API_DEBUG) {
       const cfg = error.config || {};
-      const method = (cfg.method || 'get').toUpperCase();
-      const url = `${(cfg as any).baseURL || ''}${cfg.url || ''}`;
+      const method = (cfg as any).method || 'get';
+      const url = `${(cfg as any).baseURL || ''}${(cfg as any).url || ''}`;
       console.error('[API ERROR]', method, url, {
         message: error.message,
         code: error.code,
@@ -100,7 +99,12 @@ apiClient.interceptors.response.use(
     }
 
     // ── 401: session expired or invalid token ─────────────────────────────
-    if (error.response?.status === 401) {
+    // Skip the session-expired flow for the login endpoint itself — a 401
+    // there means "wrong credentials", not an expired session, and the error
+    // message should come from the structured DRF response below.
+    const requestUrl = error.config?.url ?? '';
+    const isAuthEndpoint = requestUrl.includes('auth/login') || requestUrl.includes('auth/password-reset');
+    if (error.response?.status === 401 && !isAuthEndpoint) {
       await handleSessionExpired();
       return Promise.reject(new Error('Session expired. Please log in again.'));
     }

@@ -53,13 +53,13 @@ export async function confirmPasswordReset(payload: {
   const { data } = await apiClient.post<{ message: string }>('auth/password-reset/confirm/', payload);
   return data;
 }
-// POST /api/auth/login-session/save/
+// POST /api/auth/login-session/
+// Note: the backend also reads device_info from HTTP_USER_AGENT header (not from body).
+// We set a clean ASCII-only User-Agent in client.ts to avoid encoding errors there.
 export async function saveLoginSession(payload: {
-  latitude?: number;
-  longitude?: number;
+  latitude?: number | null;
+  longitude?: number | null;
   photo_base64?: string;
-  photo_uri?: string;
-  timestamp?: string;
 }): Promise<{ message: string }> {
   const { data } = await apiClient.post<{ message: string }>('auth/login-session/save/', payload);
   return data;

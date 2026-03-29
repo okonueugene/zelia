@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
 import * as authApi from '../api/auth';
+import { setSessionExpiredHandler } from './sessionSignal';
 import type { UserProfile, LoginCredentials } from '../types';
 
 interface AuthState {
@@ -46,7 +47,7 @@ const clearStoredAuth = async () => {
   ]);
 };
 
-export const useAuthStore = create<AuthState>()((set) => ({
+const store = create<AuthState>()((set) => ({
   token: null,
   user: null,
   isAuthenticated: false,
@@ -167,6 +168,23 @@ export const useAuthStore = create<AuthState>()((set) => ({
     }
   },
 }));
+
+// ─── Session expiry bridge ─────────────────────────────────────────────────────
+// Register a handler so api/client.ts can clear the Zustand store on 401
+// without creating a circular import dependency.
+setSessionExpiredHandler(async () => {
+  await clearStoredAuth();
+  store.setState({
+    token: null,
+    user: null,
+    isAuthenticated: false,
+    isLoading: false,
+    authReady: true,
+    error: null,
+  });
+});
+
+export const useAuthStore = store;
 
 // ─── Selectors ────────────────────────────────────────────────────────────────
 

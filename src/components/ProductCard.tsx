@@ -7,7 +7,7 @@ import { Colors, FontSize, Spacing } from '../constants/colors';
 import type { ProductListItem } from '../types';
 
 // Re-export BASE_URL for image building — defined here to avoid circular deps
-export const API_BASE_IMAGE = 'https://backup.mcdave.co.ke';
+export const API_BASE_IMAGE = 'https://zeliaoms.mcdave.co.ke';
 
 interface ProductCardProps {
   product: ProductListItem;

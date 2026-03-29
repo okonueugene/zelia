@@ -37,7 +37,7 @@ export async function getProductPriceByCategory(
   price_with_vat: number;
   vat_variation: string;
   selected_price: number;
-  stock: { mcdave: number; mombasa: number; offshore: number; total: number };
+  stock: { mcdave: number; kisii: number; offshore: number; store_stock: number; total: number };
 }> {
   const params: any = { category };
   if (vatVariation) {

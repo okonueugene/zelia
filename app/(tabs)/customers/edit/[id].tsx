@@ -46,9 +46,9 @@ export default function EditCustomerScreen() {
   // Populate form once customer data loads
   React.useEffect(() => {
     if (customer && !initialized) {
-      setFirstName(customer.first_name);
-      setLastName(customer.last_name);
-      setPhone(customer.phone_number);
+      setFirstName(customer.first_name ?? '');
+      setLastName(customer.last_name ?? '');
+      setPhone(customer.phone_number ?? '');
       setEmail(customer.email ?? '');
       setAddress(customer.address ?? '');
       setCategory(customer.default_category);

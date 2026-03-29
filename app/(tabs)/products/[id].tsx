@@ -117,7 +117,7 @@ function resolveImageUri(url: string | null | undefined): string | null {
   if (url.startsWith('http://')) {
     return __DEV__ ? url : 'https://' + url.slice(7);
   }
-  return `https://backup.mcdave.co.ke${url.startsWith('/') ? '' : '/'}${url}`;
+  return `https://zeliaoms.mcdave.co.ke${url.startsWith('/') ? '' : '/'}${url}`;
 }
 
 // ── Main screen ───────────────────────────────────────────────────────────────
